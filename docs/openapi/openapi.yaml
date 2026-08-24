@@ -1,0 +1,43 @@
+openapi: 3.1.0
+info:
+  title: Personal Data OS API
+  description: Foundation API specification for Personal Data OS.
+  version: 0.1.0
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+paths:
+  /health:
+    get:
+      summary: Health Check
+      description: Returns the operational status of the Personal Data OS API.
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy and operational.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                    description: Health status indicator
+                  service:
+                    type: string
+                    example: personal-data-os-api
+                  version:
+                    type: string
+                    example: 0.1.0
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string

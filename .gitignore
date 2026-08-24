@@ -1,0 +1,30 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Binaries & Go builds
+api/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Node / Web artifacts
+web/node_modules/
+web/dist/
+web/.vite/
+*.log
+
+# Test coverage
+coverage/
+*.out
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
