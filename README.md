@@ -5,7 +5,7 @@
 
 [![CI](https://github.com/rodrigolinhas/personal-data-os/actions/workflows/ci.yml/badge.svg)](https://github.com/rodrigolinhas/personal-data-os/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go)](https://go.dev/)
 [![React Version](https://img.shields.io/badge/React-18-61DAFB?logo=react)](https://react.dev/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql)](https://www.postgresql.org/)
 
@@ -51,7 +51,7 @@ Personal Data OS is architected as a clean, maintainable **Modular Monolith**:
 ## 🛠️ Technology Stack
 
 ### Backend
-- **Language**: Go 1.22+
+- **Language**: Go 1.27+
 - **HTTP Router**: `go-chi/chi/v5`
 - **Database Driver**: `jackc/pgx/v5` (with `pgxpool` connection pooling)
 - **Query Generator**: `sqlc` (type-safe Go code generated from explicit SQL)
@@ -137,7 +137,7 @@ personal-data-os/
 
 Ensure the following tools are installed on your workstation:
 - **Docker & Docker Compose** (for PostgreSQL)
-- **Go 1.22+**
+  - **Go 1.27+**
 - **Node.js 18+** and **npm**
 
 ---

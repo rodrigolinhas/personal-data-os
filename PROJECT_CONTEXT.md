@@ -32,7 +32,7 @@ The platform is designed around **5 core tracking modules + 1 unified analytics 
 | Decision | Selected | Rationales |
 | :--- | :--- | :--- |
 | **System Architecture** | **Modular Monolith** | Single-binary simplicity, fast compile times, zero network hop latency, and low operational overhead for self-hosted deployment. |
-| **Backend Language** | **Go (1.22+)** | Simple deployment, static single-binary compilation, strong concurrency model, and small runtime memory footprint. |
+| **Backend Language** | **Go (1.27+)** | Simple deployment, static single-binary compilation, strong concurrency model, and small runtime memory footprint. |
 | **HTTP Router** | **`go-chi/chi/v5`** | Idiomatic `net/http` compatibility, lightweight routing, and composable middleware for logging, CORS, and recovery. |
 | **Database** | **PostgreSQL 16** | Robust ACID transactions, rich JSON/date functions, window analytical queries, and connection pooling via `pgx/v5`. |
 | **SQL & Type Safety** | **`pgx/v5` + `sqlc`** | Pure SQL queries with type-safe Go code generation. Eliminates ORM runtime overhead and keeps queries explicit and reviewable. |
