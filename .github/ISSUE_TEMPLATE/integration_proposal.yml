@@ -1,0 +1,38 @@
+name: 🔌 External Integration Proposal
+description: Propose a new third-party telemetry integration (e.g. Wakatime, Strava, Spotify)
+title: "[INTEGRATION]: "
+labels: ["integration"]
+body:
+  - type: textarea
+    id: integration_name
+    attributes:
+      label: Integration Name & Service
+      description: Name of the external service and official API documentation URL.
+      placeholder: "e.g. WakaTime (https://wakatime.com/developers)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: metrics
+    attributes:
+      label: Available Metrics & Telemetry
+      description: What specific personal data metrics will this integration collect?
+      placeholder: "e.g. Daily coding time in minutes, programming languages breakdown, editor usage."
+    validations:
+      required: true
+
+  - type: textarea
+    id: sync_strategy
+    attributes:
+      label: Synchronization & Authentication Strategy
+      description: How should this service authenticate (API Key, OAuth) and sync (manual trigger, scheduled background cron)?
+    validations:
+      required: true
+
+  - type: textarea
+    id: privacy
+    attributes:
+      label: Privacy & Data Retention Considerations
+      description: How will credentials and sensitive external datasets be safely handled?
+    validations:
+      required: true

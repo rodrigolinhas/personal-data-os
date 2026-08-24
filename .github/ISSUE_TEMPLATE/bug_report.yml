@@ -1,0 +1,73 @@
+name: 🐛 Bug Report
+description: Report an issue or unexpected behavior in Personal Data OS
+title: "[BUG]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue! Please do **NOT** include real personal data, tokens, or sensitive information in this report.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Summary
+      description: A clear and concise description of the bug.
+      placeholder: "e.g. When submitting a sleep log, the duration calculation produces negative numbers if bedtime is after midnight."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected Area
+      options:
+        - API (Go backend)
+        - Web (React frontend)
+        - Database / Migrations
+        - CI / Tooling
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Exact steps to reproduce the behavior.
+      placeholder: |
+        1. Start the API with `cd api && go run ./cmd/api`
+        2. Send POST request to `/api/v1/sleep` with payload...
+        3. Observe the response error...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened (include non-sensitive logs or error codes).
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Information
+      description: OS, Go version, Node.js version, browser (if applicable).
+      value: |
+        - OS: [e.g. Linux / macOS / Windows]
+        - Go Version: [e.g. 1.27]
+        - Node Version: [e.g. 20.x]
+        - Browser: [e.g. Chrome / Firefox / Safari]
+    validations:
+      required: false

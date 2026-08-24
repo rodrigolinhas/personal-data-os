@@ -1,0 +1,45 @@
+name: 💡 Feature Request
+description: Propose a new feature or enhancement for Personal Data OS
+title: "[FEATURE]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem does this feature solve or what gap does it address?
+      placeholder: "e.g. Currently, there is no way to record workout RPE (Rate of Perceived Exertion)."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_solution
+    attributes:
+      label: Proposed Solution
+      description: Describe your proposed design or user experience.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: module
+    attributes:
+      label: Target Module
+      options:
+        - Sleep Tracking
+        - Reading & Books
+        - Habits & Routines
+        - Workouts & Strength
+        - GitHub Telemetry
+        - Unified Dashboard / Analytics
+        - Core API / Infrastructure
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative solutions or workarounds you considered.
+    validations:
+      required: false

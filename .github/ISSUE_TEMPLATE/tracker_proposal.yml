@@ -1,0 +1,42 @@
+name: 📊 New Tracker Proposal
+description: Propose a new personal tracking domain (e.g. Nutrition, Expenses, Hydration)
+title: "[TRACKER]: "
+labels: ["tracker-proposal"]
+body:
+  - type: textarea
+    id: tracker_name
+    attributes:
+      label: Tracker Name
+      description: Name of the proposed domain or metric tracker.
+      placeholder: "e.g. Hydration & Water Intake"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Purpose & User Value
+      description: Why is this metric important to track in Personal Data OS?
+    validations:
+      required: true
+
+  - type: textarea
+    id: data_model
+    attributes:
+      label: Proposed Relational Data Model
+      description: Proposed database schema, fields, types, and constraints.
+      placeholder: |
+        Table: hydration_logs
+        - date: DATE NOT NULL UNIQUE
+        - amount_ml: INT NOT NULL CHECK (amount_ml >= 0)
+        - target_ml: INT NOT NULL DEFAULT 2500
+    validations:
+      required: true
+
+  - type: textarea
+    id: collection_method
+    attributes:
+      label: Data Collection Method
+      description: Will this tracker be manually logged in the web app or synced automatically?
+    validations:
+      required: true
