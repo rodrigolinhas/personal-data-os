@@ -1,182 +1,110 @@
-# 🪐 Personal Data OS
+<h1 align="center">Personal Data OS</h1>
 
-> **Engineering Foundation (v0.1.0-alpha)**  
-> A modular monolith for personal telemetry, habit tracking, health metrics, and quantified-self analytics.
+<p align="center">
+  <strong>Your life. Your data.</strong>
+</p>
 
-[![CI](https://github.com/rodrigolinhas/personal-data-os/actions/workflows/ci.yml/badge.svg)](https://github.com/rodrigolinhas/personal-data-os/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Go Version](https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go)](https://go.dev/)
-[![React Version](https://img.shields.io/badge/React-18-61DAFB?logo=react)](https://react.dev/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql)](https://www.postgresql.org/)
+<p align="center">
+  A self-hosted, modular telemetry and quantified-self operating system built for total data ownership, privacy-first tracking, and cross-domain personal analytics.
+</p>
 
----
-
-## 📌 Project Status
-
-**Current Phase: Engineering Foundation Setup.**  
-The core engineering infrastructure, database connection pooling, configuration loading, HTTP routing with structured logging, type-safe API client abstractions, CI pipelines, and verification suites are fully established.
-
-> [!NOTE]
-> Domain modules (Sleep, Reading, Workouts, Habits, GitHub telemetry) will be introduced in subsequent vertical slices. The first planned product slice is **Sleep Tracking**.
-
----
-
-## 🏗️ Architecture Overview
-
-Personal Data OS is architected as a clean, maintainable **Modular Monolith**:
-
-```text
-┌────────────────────────────────────────────────────────┐
-│                   React + TypeScript                   │
-│             (Vite + Tailwind CSS + TanStack)           │
-└───────────────────────────┬────────────────────────────┘
-                            │
-                            │ REST (/api/v1) & (/health)
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│                      Go HTTP API                       │
-│              (Chi v5 + log/slog Logger)                │
-└───────────────────────────┬────────────────────────────┘
-                            │
-                            │ pgx/v5 (pgxpool)
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│                  PostgreSQL 16 Engine                  │
-│          (Docker Compose + Persistent Volume)          │
-└────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <a href="https://github.com/rodrigolinhas/personal-data-os/actions/workflows/ci.yml">
+    <img src="https://github.com/rodrigolinhas/personal-data-os/actions/workflows/ci.yml/badge.svg" alt="CI Status" />
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" />
+  </a>
+  <a href="https://go.dev/">
+    <img src="https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go" alt="Go Version" />
+  </a>
+  <a href="https://react.dev/">
+    <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react" alt="React Version" />
+  </a>
+  <a href="https://www.postgresql.org/">
+    <img src="https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql" alt="PostgreSQL 16" />
+  </a>
+</p>
 
 ---
 
-## 🛠️ Technology Stack
+## 📑 Table of Contents
 
-### Backend
-- **Language**: Go 1.27+
-- **HTTP Router**: `go-chi/chi/v5`
-- **Database Driver**: `jackc/pgx/v5` (with `pgxpool` connection pooling)
-- **Query Generator**: `sqlc` (type-safe Go code generated from explicit SQL)
-- **Migrations**: `golang-migrate` versioned SQL format
-- **Structured Logging**: Standard library `log/slog`
-- **Testing**: Standard Go `testing` package and `net/http/httptest`
-
-### Frontend
-- **Framework**: React 18
-- **Language**: TypeScript (strict mode)
-- **Build Tooling**: Vite 5
-- **Styling**: Tailwind CSS (utility-first styling with build-time CSS generation)
-- **Server State**: `@tanstack/react-query` (TanStack Query v5)
-- **Forms & Validation**: `react-hook-form` + `zod`
-- **Linting & Code Quality**: ESLint (`@typescript-eslint`)
-- **Testing**: Vitest + React Testing Library + `@testing-library/jest-dom`
-
-### Infrastructure & DevOps
-- **Containerization**: Docker & Docker Compose
-- **Continuous Integration**: GitHub Actions (`.github/workflows/ci.yml`)
-- **Security Analysis**: `govulncheck` (Go official vulnerability scanner)
-- **API Specification**: OpenAPI 3.1 (`docs/openapi/openapi.yaml`)
+- [What is Personal Data OS?](#-what-is-personal-data-os)
+- [Why It Exists](#-why-it-exists)
+- [Feature Status](#-feature-status)
+- [Quick Start](#-quick-start)
+- [Environment Variables](#-environment-variables)
+- [Project Structure](#-project-structure)
+- [Architecture](#-architecture)
+- [Technology Stack](#-technology-stack)
+- [API & Telemetry](#-api-telemetry)
+- [Development Commands](#-development-commands)
+- [Roadmap](#-roadmap)
+- [Privacy & Data Ownership](#-privacy-data-ownership)
+- [Contributing](#-contributing)
+- [Security](#-security)
+- [License](#-license)
 
 ---
 
-## 📁 Repository Structure
+## 🧭 What is Personal Data OS?
 
-```text
-personal-data-os/
-├── .github/
-│   └── workflows/
-│       └── ci.yml               # GitHub Actions CI pipeline
-│
-├── api/                         # Backend Go Service
-│   ├── cmd/
-│   │   └── api/
-│   │       └── main.go          # Application entrypoint & graceful shutdown
-│   ├── internal/
-│   │   ├── config/              # Environment configuration & validation
-│   │   ├── database/            # PostgreSQL pgxpool connection manager
-│   │   └── http/                # Chi router, middlewares, and HTTP handlers
-│   ├── db/
-│   │   ├── migrations/          # Version-controlled SQL migration scripts
-│   │   ├── queries/             # Explicit SQL query files for sqlc
-│   │   └── sqlc/                # Type-safe Go code generated by sqlc
-│   ├── go.mod
-│   ├── go.sum
-│   └── sqlc.yaml                # sqlc code generation configuration
-│
-├── web/                         # Frontend React Application
-│   ├── src/
-│   │   ├── api/                 # API client wrapper and TanStack Query hooks
-│   │   ├── app/                 # Application shell & status components
-│   │   ├── components/          # Shared UI components
-│   │   ├── features/            # Feature modules (sleep, reading, habits, etc.)
-│   │   ├── pages/               # Application view routes
-│   │   ├── shared/              # Shared utilities and test setup
-│   │   ├── index.css            # Tailwind CSS directives
-│   │   └── main.tsx             # React DOM root entrypoint
-│   ├── index.html
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── vite.config.ts
-│   ├── tailwind.config.js
-│   └── postcss.config.js
-│
-├── docs/
-│   └── openapi/
-│       └── openapi.yaml         # Living OpenAPI 3.1 specification
-│
-├── AGENTS.md                    # Directives and rules for AI coding assistants
-├── PROJECT_CONTEXT.md           # Product decisions and architectural context
-├── README.md                    # Project documentation
-├── .env.example                 # Environment configuration template
-├── .gitignore                   # Ignored files and artifacts
-├── docker-compose.yml           # Local PostgreSQL container service
-└── LICENSE                      # MIT License
-```
+**Personal Data OS** is a self-hosted personal data aggregator and telemetry hub. It unifies physical health metrics, cognitive habits, strength training, reading logs, and developer productivity into a single local database and command center.
 
 ---
 
-## ⚡ Prerequisites
+## 💡 Why It Exists
 
-Ensure the following tools are installed on your workstation:
-- **Docker & Docker Compose** (for PostgreSQL)
-  - **Go 1.27+**
-- **Node.js 18+** and **npm**
+Modern quantified-self tracking is fragmented across proprietary silos, subscription-gated dashboards, and closed clouds. Personal Data OS provides:
+- **Total Data Ownership**: All data lives in your PostgreSQL database on your machine or private server.
+- **Unified Cross-Domain Analytics**: Correlate sleep duration with reading velocity, habit consistency with workout frequency, and developer output.
+- **Zero SaaS Lock-in**: No paid API tiers, no telemetry trackers, and no unexpected terms-of-service changes.
+- **High Performance & Longevity**: Built as a lean modular monolith using Go, raw SQL, and React for decades of maintainability.
 
 ---
 
-## 🚀 Development Setup
+## 📊 Feature Status
 
-Commands below are compatible with standard POSIX shells (`bash`, `zsh`) and `fish`.
+### Implemented (Foundation Phase)
+- [x] **Modular Monolith Foundation**: Go Chi backend + React Vite frontend.
+- [x] **PostgreSQL Connection Pool**: Managed with `pgx/v5` (`pgxpool`) and health verification.
+- [x] **Configuration Validation**: Centralized environment variable loader.
+- [x] **Infrastructure Telemetry**: `GET /health` process liveness endpoint.
+- [x] **Living API Contract**: OpenAPI 3.1 specification at `docs/openapi/openapi.yaml`.
+- [x] **Continuous Integration**: GitHub Actions automated pipeline (formatting, vet, race tests, `govulncheck`, frontend typecheck, lint, Vitest, build).
+- [x] **Containerized Database**: Docker Compose PostgreSQL 16 service with persistent volume.
 
-### 1. Environment Configuration
-Copy the template environment file:
+### Planned (Roadmap Modules)
+- [ ] **Sleep Tracking** (`M2`): Bedtime, wake time, duration, quality scores, and 7d/30d moving averages.
+- [ ] **Reading & Books Tracker** (`M3`): Book library catalog, reading session logger, reading speed metrics.
+- [ ] **Habits & Discipline** (`M4`): Daily/weekly habit definitions, completion toggles, streak counters.
+- [ ] **Workouts & Strength** (`M5`): Relational exercise logger (workouts ➔ exercises ➔ sets with reps, weight, RPE).
+- [ ] **GitHub Activity Telemetry** (`M6`): Automated commit sync, PRs, issues, active coding days.
+- [ ] **Unified Command Center Dashboard** (`M7`): Cross-domain summary endpoint (`/api/v1/dashboard/summary`), period selector (Today / Week / Month / Year), and delta trends.
+
+---
+
+## ⚡ Quick Start
+
+### 1. Clone Repository & Setup Environment
 ```bash
+git clone https://github.com/rodrigolinhas/personal-data-os.git
+cd personal-data-os
 cp .env.example .env
-```
-
-Configuration reference:
-```env
-APP_ENV=development
-API_PORT=8080
-
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=personal_data_os
-POSTGRES_USER=personal_data
-POSTGRES_PASSWORD=change_me
-POSTGRES_SSLMODE=disable
 ```
 
 ### 2. Start PostgreSQL Database
 ```bash
 docker compose up -d
 ```
-*PostgreSQL 16 container starts with a persistent Docker volume and automated healthcheck.*
 
 ### 3. Run Backend API (`api/`)
 ```bash
 cd api
 go run ./cmd/api
 ```
-*The API will start listening on `http://localhost:8080`.*
+*API listens on `http://localhost:8080`.*
 
 Test the health check endpoint:
 ```bash
@@ -184,36 +112,154 @@ curl http://localhost:8080/health
 # Response: {"status":"ok","service":"personal-data-os-api","version":"0.1.0"}
 ```
 
-### 4. Run Frontend Application (`web/`)
+### 4. Run Frontend Web App (`web/`)
+In a separate terminal:
 ```bash
 cd web
 npm install
 npm run dev
 ```
-*The development server will start on `http://localhost:5173` with automatic API proxying.*
+*Web dashboard opens at `http://localhost:5173` with automatic API proxying.*
 
 ---
 
-## 🧪 Testing & Verification
+## 🔐 Environment Variables
 
-### Backend Tests & Static Analysis
+Configuration is loaded from `.env` using `.env.example` as the source of truth:
+
+| Variable | Required | Description | Example |
+| :--- | :--- | :--- | :--- |
+| `APP_ENV` | No | Runtime environment (`development`, `production`) | `development` |
+| `API_PORT` | Yes | HTTP server listen port | `8080` |
+| `POSTGRES_HOST` | Yes | PostgreSQL server hostname | `localhost` |
+| `POSTGRES_PORT` | Yes | PostgreSQL port | `5432` |
+| `POSTGRES_DB` | Yes | Database name | `personal_data_os` |
+| `POSTGRES_USER` | Yes | Database user | `personal_data` |
+| `POSTGRES_PASSWORD`| Yes | Database password | `change_me` |
+| `POSTGRES_SSLMODE` | Yes | SSL mode for database connection | `disable` |
+
+---
+
+## 📁 Project Structure
+
+```text
+personal-data-os/
+├── .github/
+│   ├── workflows/ci.yml         # Automated CI testing and validation pipeline
+│   ├── ISSUE_TEMPLATE/          # Structured GitHub issue templates
+│   └── PULL_REQUEST_TEMPLATE.md # Standardized PR review template
+│
+├── api/                         # Go HTTP Backend Service
+│   ├── cmd/api/main.go          # Process entrypoint & graceful shutdown
+│   ├── internal/
+│   │   ├── config/              # Environment loading and validation
+│   │   ├── database/            # PostgreSQL pgxpool connection management
+│   │   └── http/                # Chi router, middlewares, and REST handlers
+│   ├── db/
+│   │   ├── migrations/          # Version-controlled golang-migrate SQL files
+│   │   ├── queries/             # Explicit SQL query definitions
+│   │   └── sqlc/                # Type-safe Go code generated by sqlc
+│   ├── go.mod, go.sum, sqlc.yaml
+│
+├── web/                         # React SPA Web Application
+│   ├── src/
+│   │   ├── api/                 # API client wrapper and TanStack Query hooks
+│   │   ├── app/                 # Application shell & status telemetry
+│   │   ├── components/          # Shared reusable UI components
+│   │   ├── features/            # Modular feature slices (sleep, reading, etc.)
+│   │   ├── pages/               # Top-level view routes
+│   │   └── shared/              # Test utilities and shared helpers
+│   ├── package.json, vite.config.ts, tailwind.config.js, tsconfig.json
+│
+├── docs/                        # In-Depth Engineering Documentation
+│   ├── architecture.md          # System architecture and layer responsibilities
+│   ├── development.md           # Local setup and workflow guide
+│   ├── database.md              # Database standards, migrations, and sqlc
+│   ├── api.md                   # REST conventions and error handling
+│   ├── roadmap.md               # Milestones M1 through M7
+│   ├── open-questions.md        # Unresolved architectural decisions
+│   └── openapi/openapi.yaml     # Living OpenAPI 3.1 contract
+│
+├── AGENTS.md                    # Guidelines for AI coding assistants
+├── CONTRIBUTING.md               # Contributor guidelines and Definition of Done
+├── SECURITY.md                   # Vulnerability reporting and data safety rules
+├── docker-compose.yml           # Local PostgreSQL container definition
+├── .env.example                 # Configuration template
+├── .gitignore                   # Version control exclusions
+└── LICENSE                      # MIT License
+```
+
+---
+
+## 🏛️ Architecture
+
+Personal Data OS uses a **Modular Monolith** architecture:
+
+```mermaid
+flowchart LR
+    Client["React 18 SPA (web/)"]
+    API["Go Chi API (api/)"]
+    DB[("PostgreSQL 16")]
+
+    Client -->|REST HTTP / JSON| API
+    API -->|pgxpool / explicit SQL| DB
+```
+
+Detailed architectural diagrams and layer flows are documented in [docs/architecture.md](docs/architecture.md).
+
+---
+
+## 🛠️ Technology Stack
+
+| Layer | Technology | Purpose |
+| :--- | :--- | :--- |
+| **Backend Language** | Go 1.27+ | Single-binary runtime, concurrency, low memory footprint |
+| **HTTP Routing** | `go-chi/chi/v5` | Idiomatic HTTP routing and composable middleware |
+| **Database Pool** | `jackc/pgx/v5` (`pgxpool`) | High-performance PostgreSQL connection pooling |
+| **SQL Tooling** | `sqlc` | Type-safe Go query code generation from explicit SQL |
+| **Migrations** | `golang-migrate` | Deterministic `.up.sql` / `.down.sql` schema versions |
+| **Structured Logs**| `log/slog` | Standard library structured JSON/text logging |
+| **Frontend UI** | React 18 + TypeScript | Strict-typed component interface |
+| **Build Tooling** | Vite 5 | Fast development server and optimized bundle build |
+| **Styling** | Tailwind CSS 3 | Utility-first styling with build-time CSS compilation |
+| **Server State** | TanStack Query v5 | Declarative server-state caching and synchronization |
+| **Forms & Schemas**| React Hook Form + Zod | Type-safe form validation matching backend contracts |
+| **Testing** | Vitest + RTL & Go `testing` | Component, unit, and API integration testing |
+| **Containerization**| Docker Compose | Local PostgreSQL 16 database service |
+| **API Contract** | OpenAPI 3.1 | Machine-readable API specification |
+
+---
+
+## 📡 API & Telemetry
+
+- **Base URL**: `http://localhost:8080`
+- **Domain Namespace**: `/api/v1/*`
+- **Infrastructure Health**: `GET /health` (returns `{"status":"ok","service":"personal-data-os-api","version":"0.1.0"}`)
+- **OpenAPI Specification**: Located at [docs/openapi/openapi.yaml](docs/openapi/openapi.yaml).
+- For design conventions and error formatting, see [docs/api.md](docs/api.md).
+
+---
+
+## 🧪 Development Commands
+
+### Backend (`api/`)
 ```bash
 cd api
 
-# Run all unit and integration tests
-go test -v ./...
+# Run unit and integration tests with race detector
+go test -v -race ./...
 
 # Run static analysis
 go vet ./...
 
-# Verify formatting
+# Verify code formatting
 gofmt -l .
 
-# Compile binary verification
+# Compile binary
 go build -o bin/api ./cmd/api
 ```
 
-### Frontend Tests, Linting & Typecheck
+### Frontend (`web/`)
 ```bash
 cd web
 
@@ -230,119 +276,47 @@ npm test
 npm run build
 ```
 
----
-
-## 🗄️ Database Migrations & sqlc
-
-### Migration Conventions
-Database migrations follow the `golang-migrate` naming convention:
-```text
-api/db/migrations/
-  000001_create_sleep_logs.up.sql
-  000001_create_sleep_logs.down.sql
-```
-
-Applying migrations via `golang-migrate` CLI:
-```bash
-migrate -path api/db/migrations -database "postgres://personal_data:change_me@localhost:5432/personal_data_os?sslmode=disable" up
-```
-
-### Generating Type-Safe Queries with `sqlc`
-Queries live in `api/db/queries/`. To regenerate Go code:
-```bash
-cd api
-sqlc generate
-```
-*Generated models and queries are output to `api/db/sqlc/`.*
-
----
-
-## 🔄 Continuous Integration (CI)
-
-The GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every pull request and push to `main`:
-1. **Backend Validation**: `gofmt` check, `go vet`, `go test -race`, `govulncheck`, and `go build`.
-2. **Frontend Validation**: `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build`.
-
----
-
-## 🤝 Contributing
-
-We welcome contributions to **Personal Data OS**! To maintain code quality, security, and architectural consistency, please follow these guidelines:
-
-### 1. Development Principles
-- **Respect the Modular Monolith**: Do not introduce microservices, message queues (Kafka, RabbitMQ), or caching layers (Redis).
-- **Explicit SQL**: Do NOT use ORMs (GORM, Ent, etc.). Write raw SQL migrations and generate type-safe queries using `sqlc`.
-- **Zero Secrets**: Never commit `.env` files, API tokens, or real credentials.
-- **Vertical Slice Architecture**: Implement features end-to-end (Migration ➔ SQL ➔ sqlc ➔ Go Service/Handler ➔ OpenAPI ➔ React API ➔ UI).
-- **Scope Control**: Avoid premature complexity or implementing unrelated features within a single PR.
-
-### 2. Branching Strategy
-Create a focused branch from `main`:
-```bash
-# For new features
-git checkout -b feature/sleep-tracking
-
-# For bug fixes
-git checkout -b fix/db-connection-retry
-
-# For maintenance and documentation
-git checkout -b chore/ci-govulncheck
-```
-
-### 3. Commit Message Guidelines
-Follow the [Conventional Commits](https://www.conventionalcommits.org/) format:
-```text
-<type>(<scope>): <short description>
-```
-**Examples:**
-- `feat(sleep): add sleep_logs schema migration and sqlc queries`
-- `feat(api): expose POST /api/v1/sleep endpoint`
-- `fix(web): handle API connection timeout gracefully`
-- `test(api): add unit tests for health check handler`
-- `docs(readme): add contributing guidelines and commands`
-
-### 4. Pre-Pull Request Checklist
-Before opening a Pull Request, verify that all local checks pass cleanly:
-
-```bash
-# 1. Verify Backend
-cd api
-gofmt -l .
-go vet ./...
-go test -v -race ./...
-go build ./cmd/api
-
-# 2. Verify Frontend
-cd ../web
-npm run typecheck
-npm run lint
-npm test
-npm run build
-```
-
-### 5. Submitting a Pull Request
-1. Push your branch to GitHub.
-2. Open a Pull Request against `main`.
-3. Provide a concise summary of changes, rationale, and manual verification steps.
-4. Ensure all GitHub Actions CI checks pass.
+For full database migration and query generation commands, see [docs/development.md](docs/development.md).
 
 ---
 
 ## 🗺️ Roadmap
 
-The platform roadmap is organized around **5 core tracking modules + 1 unified analytics layer**:
+The roadmap is structured into sequential vertical slices:
+- **Milestone 1**: Engineering Foundation Setup *(Completed)*
+- **Milestone 2**: Sleep Tracking Module *(Next Vertical Slice)*
+- **Milestone 3**: Reading & Books Tracker
+- **Milestone 4**: Habits & Discipline Tracker
+- **Milestone 5**: Workouts & Strength Module
+- **Milestone 6**: GitHub Telemetry Collector
+- **Milestone 7**: Unified Analytics Command Center
 
-```text
-  [Phase 1: Foundation]        [Phase 2: Sleep Module]        [Phase 3: Core Domains]
- ┌──────────────────────┐     ┌────────────────────────┐     ┌─────────────────────────┐
- │ • Go + Chi API       │     │ • sleep_logs schema    │     │ • Reading / Books       │
- │ • PostgreSQL pgxpool │ ──► │ • Sleep calculation API│ ──► │ • Workouts & Sets       │
- │ • React + Vite Web   │     │ • Sleep UI entry & card│     │ • Habits tracking       │
- │ • CI + OpenAPI Spec  │     │ • End-to-end slice     │     │ • GitHub telemetry      │
- └──────────────────────┘     └────────────────────────┘     └─────────────────────────┘
-```
+For detailed milestone deliverables and criteria, see [docs/roadmap.md](docs/roadmap.md).
+
+---
+
+## 🔒 Privacy & Data Ownership
+
+Personal Data OS is built around strict data privacy rules:
+- **User-Owned Storage**: Data remains strictly on your own hardware or private VPS.
+- **Zero Third-Party Telemetry**: The application does not contain tracking scripts or analytics beacons.
+- **Synthetic Fixtures**: All repository test fixtures, mocks, and documentation examples use synthetic sample data.
+- **Credential Safety**: API tokens and database passwords must never be committed to Git.
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please review [CONTRIBUTING.md](CONTRIBUTING.md) for our branch naming conventions, Conventional Commits standard, and definition-of-done checklist.
+
+---
+
+## 🛡️ Security
+
+To report a vulnerability or read our data protection policies, please consult [SECURITY.md](SECURITY.md).
 
 ---
 
 ## 📄 License
+
 This project is licensed under the [MIT License](LICENSE).
