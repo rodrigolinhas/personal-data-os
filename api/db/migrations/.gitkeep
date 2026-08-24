@@ -1,2 +1,0 @@
--- Database migrations will be placed here following the golang-migrate naming convention:
--- e.g. 000001_create_sleep_logs.up.sql and 000001_create_sleep_logs.down.sql
