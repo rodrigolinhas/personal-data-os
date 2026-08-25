@@ -75,6 +75,9 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
+      - name: Verify Formatting (Prettier)
+        run: npm run format:check
+
       - name: Run Vitest Unit Tests
         run: npm test -- --run
 
