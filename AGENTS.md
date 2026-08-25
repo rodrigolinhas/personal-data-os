@@ -58,6 +58,12 @@ npm run typecheck
 # Lint with ESLint
 npm run lint
 
+# Check code formatting with Prettier
+npm run format:check
+
+# Format code with Prettier
+npm run format
+
 # Run Vitest test suite
 npm test
 
