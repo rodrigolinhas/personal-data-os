@@ -9,9 +9,9 @@ Thank you for your interest in contributing to **Personal Data OS**! We welcome 
 Before submitting code, please keep these directives in mind:
 1. **Respect the Modular Monolith**: Do NOT introduce microservices, message queues (Kafka, RabbitMQ), distributed caches (Redis), or heavy ORMs (GORM, Ent).
 2. **Explicit SQL with `sqlc`**: Database interactions use raw SQL migrations (`golang-migrate` format) and type-safe generated queries with `sqlc`.
-3. **Vertical Slice Development**: Implement complete end-to-end features rather than disconnected layers.
+3. **Vertical Slice Development**: Plan work as complete vertical product slices. Implementation may be split into focused database, backend, and frontend issues/PRs when they remain linked to a single parent feature.
 4. **Zero Personal Data & Secrets**: Never commit real health records, personal datasets, API tokens, or `.env` files. All test fixtures must use synthetic data.
-5. **No Scope Creep**: Keep pull requests small, focused, and verified against a single issue or milestone.
+5. **No Scope Creep**: Keep pull requests small, focused, and tied to a single implementation issue. When the issue belongs to a larger feature, keep it linked to its parent feature and milestone.
 
 ---
 
@@ -43,8 +43,15 @@ npm run build
 ## 3. Finding Work & Issue Claiming
 
 1. Check open issues in the GitHub repository.
-2. Comment on the issue to state you are working on it before submitting a PR to avoid duplicate effort.
-3. If proposing a new tracker or integration, first open an issue using the appropriate issue form (`tracker_proposal` or `integration_proposal`).
+2. Distinguish between:
+
+   * **Parent feature issues**, which define complete user-facing capabilities and acceptance criteria.
+   * **Implementation issues**, which define focused, PR-sized database, backend, frontend, testing, or documentation work.
+3. Prefer working from an implementation issue when one exists.
+4. Comment on the issue to state you are working on it before submitting a PR to avoid duplicate effort.
+5. Keep implementation issues linked to their parent feature and milestone so the complete vertical slice remains traceable.
+6. If proposing a new tracker or integration, first open an issue using the appropriate issue form (`tracker_proposal` or `integration_proposal`).
+
 
 ---
 
@@ -88,21 +95,65 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ---
 
-## 6. Definition of Done (Vertical Slice Checklist)
+## 6. Definition of Done
 
-A new feature PR is ready for review when:
-- [ ] Database migration (`.up.sql` and `.down.sql`) created in `api/db/migrations/`.
-- [ ] Explicit queries added in `api/db/queries/` and generated via `sqlc generate`.
-- [ ] Go service and repository implemented in `api/internal/<domain>/`.
-- [ ] HTTP handlers and validation implemented in `api/internal/http/`.
-- [ ] Backend unit and integration tests added and passing (`go test -race ./...`).
-- [ ] `docs/openapi/openapi.yaml` updated with new endpoints and schemas.
-- [ ] Frontend API client, Zod schemas, and TanStack Query hooks created in `web/src/features/<domain>/api/`.
-- [ ] Frontend UI components and forms created in `web/src/features/<domain>/`.
-- [ ] Frontend tests added and passing (`npm test`).
-- [ ] TypeScript checks and ESLint pass (`npm run typecheck && npm run lint`).
-- [ ] Documentation updated where applicable.
-- [ ] No real personal data, credentials, or `.env` files committed.
+A pull request is ready for review when all requirements relevant to its scope are complete.
+
+### All PRs
+
+* [ ] The PR addresses one focused implementation issue.
+* [ ] The implementation matches the issue acceptance criteria.
+* [ ] Relevant tests are added or updated and passing.
+* [ ] Existing tests continue to pass.
+* [ ] Formatting, linting, and static analysis pass for affected code.
+* [ ] Documentation is updated where applicable.
+* [ ] No unrelated refactoring or scope creep is included.
+* [ ] No real personal data, credentials, API tokens, or `.env` files are committed.
+
+### Database PRs
+
+When the issue changes persistence or SQL:
+
+* [ ] Reversible migrations (`.up.sql` and `.down.sql`) are added under `api/db/migrations/`.
+* [ ] Explicit queries are added or updated under `api/db/queries/`.
+* [ ] Generated `sqlc` code is refreshed with `sqlc generate`.
+* [ ] Database constraints enforce applicable domain invariants.
+* [ ] Database/query tests are added where appropriate.
+
+### Backend / API PRs
+
+When the issue changes backend behavior:
+
+* [ ] Go domain/service/repository code is implemented in the appropriate package.
+* [ ] HTTP handlers and validation are implemented where applicable.
+* [ ] API errors follow the project's standard error format.
+* [ ] Backend unit and/or integration tests are added and passing.
+* [ ] `go test -race ./...` passes.
+* [ ] `go vet ./...` passes.
+* [ ] `docs/openapi/openapi.yaml` is updated when the public API contract changes.
+
+### Frontend PRs
+
+When the issue changes the web application:
+
+* [ ] API client types, schemas, and TanStack Query hooks are updated where applicable.
+* [ ] UI components and forms are implemented under the appropriate feature module.
+* [ ] Loading, empty, validation, and error states are handled where applicable.
+* [ ] Frontend tests are added or updated and passing.
+* [ ] `npm run typecheck` passes.
+* [ ] `npm run lint` passes.
+* [ ] `npm test` passes.
+* [ ] `npm run build` succeeds.
+
+### Parent Feature Completion
+
+A parent feature issue is complete only when:
+
+* [ ] All required implementation issues are closed.
+* [ ] The complete end-to-end user flow satisfies the parent acceptance criteria.
+* [ ] Database, API, and UI behavior are consistent with one another where applicable.
+* [ ] The public API contract and relevant documentation reflect the delivered feature.
+* [ ] The integrated feature passes the repository CI pipeline.
 
 ---
 
