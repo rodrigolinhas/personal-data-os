@@ -13,6 +13,21 @@ jobs:
     defaults:
       run:
         working-directory: api
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci_user
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: personal_data_os_test
+        ports:
+          - 5432:5432
+        options: >
+          --health-cmd "pg_isready -U ci_user -d personal_data_os_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -36,7 +51,21 @@ jobs:
       - name: Run Go Vet
         run: go vet ./...
 
+      - name: Apply Database Migrations
+        env:
+          PGPASSWORD: ci_password
+        run: |
+          psql -h localhost -U ci_user -d personal_data_os_test \
+            -f db/migrations/000001_create_sleep_logs.up.sql
+
       - name: Run Backend Tests
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_USER: ci_user
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: personal_data_os_test
+          POSTGRES_SSLMODE: disable
         run: go test -v -race ./...
 
       - name: Run govulncheck
