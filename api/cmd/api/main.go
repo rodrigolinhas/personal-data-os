@@ -10,9 +10,11 @@ import (
 	"syscall"
 	"time"
 
+	"personal-data-os/api/db/sqlc"
 	"personal-data-os/api/internal/config"
 	"personal-data-os/api/internal/database"
 	appHTTP "personal-data-os/api/internal/http"
+	"personal-data-os/api/internal/sleep"
 )
 
 func main() {
@@ -46,8 +48,13 @@ func main() {
 		defer db.Close()
 	}
 
+	var sleepService *sleep.Service
+	if db != nil {
+		sleepService = sleep.NewService(sqlc.New(db.Pool))
+	}
+
 	// 4. Build HTTP Router
-	router := appHTTP.NewRouter()
+	router := appHTTP.NewRouter(sleepService)
 
 	// 5. Configure HTTP Server
 	server := &http.Server{
