@@ -20,8 +20,8 @@ type FormValues = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function validateForm(values: FormValues): string | Record<string, string> | null {
-  // Parse quality as number for validation
+/** Returns a map of field → error message, or null when the form is valid. */
+function validateForm(values: FormValues): Record<string, string> | null {
   const qualityNum = Number(values.quality);
   const payload = {
     date: values.date,
@@ -43,7 +43,7 @@ function validateForm(values: FormValues): string | Record<string, string> | nul
     return fieldErrors;
   }
 
-  // Cross-field validation: bedtime must not equal wake_time
+  // Cross-field: bedtime must differ from wake_time
   if (values.bedtime && values.wake_time && values.bedtime === values.wake_time) {
     return { wake_time: 'Wake time must differ from bedtime' };
   }
@@ -80,15 +80,17 @@ const FieldError: React.FC<FieldErrorProps> = ({ id, message }) =>
     </p>
   ) : null;
 
-const inputClass =
-  'mt-1.5 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 ' +
-  'placeholder-slate-600 transition focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 ' +
+const BASE_INPUT =
+  'mt-1.5 w-full rounded-lg border bg-slate-900 px-3 py-2 text-sm text-slate-100 ' +
+  'placeholder-slate-600 transition focus:outline-none focus:ring-1 ' +
   'disabled:cursor-not-allowed disabled:opacity-50';
 
-const inputErrorClass =
-  'mt-1.5 w-full rounded-lg border border-rose-500/60 bg-slate-900 px-3 py-2 text-sm text-slate-100 ' +
-  'placeholder-slate-600 transition focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400 ' +
-  'disabled:cursor-not-allowed disabled:opacity-50';
+const INPUT_NORMAL = `${BASE_INPUT} border-slate-700 focus:border-indigo-500 focus:ring-indigo-500`;
+const INPUT_ERROR = `${BASE_INPUT} border-rose-500/60 focus:border-rose-400 focus:ring-rose-400`;
+
+function inputCn(hasError: boolean): string {
+  return hasError ? INPUT_ERROR : INPUT_NORMAL;
+}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -106,14 +108,14 @@ export const SleepForm: React.FC = () => {
   });
 
   const mutation = useCreateSleepMutation();
+  const { isSuccess, reset: resetMutation } = mutation;
 
-  // Reset success state when the user starts modifying the form again
+  // Auto-clear the success banner after 4 s so the form feels clean.
   useEffect(() => {
-    if (mutation.isSuccess) {
-      const timer = setTimeout(() => mutation.reset(), 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [mutation]);
+    if (!isSuccess) return;
+    const timer = setTimeout(resetMutation, 4000);
+    return () => clearTimeout(timer);
+  }, [isSuccess, resetMutation]);
 
   const onSubmit = handleSubmit((values) => {
     const validationResult = validateForm(values);
@@ -176,7 +178,7 @@ export const SleepForm: React.FC = () => {
           aria-describedby={errors.date ? 'sleep-date-error' : undefined}
           aria-invalid={!!errors.date}
           disabled={isSubmitting}
-          className={errors.date ? inputErrorClass : inputClass}
+          className={inputCn(!!errors.date)}
           {...register('date')}
         />
         <FieldError id="sleep-date-error" message={errors.date?.message} />
@@ -194,7 +196,7 @@ export const SleepForm: React.FC = () => {
             aria-describedby={errors.bedtime ? 'sleep-bedtime-error' : undefined}
             aria-invalid={!!errors.bedtime}
             disabled={isSubmitting}
-            className={errors.bedtime ? inputErrorClass : inputClass}
+            className={inputCn(!!errors.bedtime)}
             {...register('bedtime')}
           />
           <FieldError id="sleep-bedtime-error" message={errors.bedtime?.message} />
@@ -210,7 +212,7 @@ export const SleepForm: React.FC = () => {
             aria-describedby={errors.wake_time ? 'sleep-wake-time-error' : undefined}
             aria-invalid={!!errors.wake_time}
             disabled={isSubmitting}
-            className={errors.wake_time ? inputErrorClass : inputClass}
+            className={inputCn(!!errors.wake_time)}
             {...register('wake_time')}
           />
           <FieldError id="sleep-wake-time-error" message={errors.wake_time?.message} />
@@ -233,7 +235,7 @@ export const SleepForm: React.FC = () => {
           aria-describedby={errors.quality ? 'sleep-quality-error' : undefined}
           aria-invalid={!!errors.quality}
           disabled={isSubmitting}
-          className={errors.quality ? inputErrorClass : inputClass}
+          className={inputCn(!!errors.quality)}
           {...register('quality')}
         />
         <FieldError id="sleep-quality-error" message={errors.quality?.message} />
@@ -251,7 +253,7 @@ export const SleepForm: React.FC = () => {
           aria-describedby={errors.notes ? 'sleep-notes-error' : undefined}
           aria-invalid={!!errors.notes}
           disabled={isSubmitting}
-          className={`resize-none ${errors.notes ? inputErrorClass : inputClass}`}
+          className={`resize-none ${inputCn(!!errors.notes)}`}
           {...register('notes')}
         />
         <FieldError id="sleep-notes-error" message={errors.notes?.message} />
