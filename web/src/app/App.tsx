@@ -1,130 +1,108 @@
 import React from 'react';
 import { useHealthQuery } from '../api/health';
-import {
-  Activity,
-  Database,
-  Server,
-  Layers,
-  CheckCircle2,
-  AlertCircle,
-  RefreshCw,
-} from 'lucide-react';
+import { Activity, CheckCircle2, AlertCircle, Moon } from 'lucide-react';
+import { SleepForm } from '../features/sleep/SleepForm';
+import { SleepHistory } from '../features/sleep/SleepHistory';
 
 export const App: React.FC = () => {
-  const { data: health, isLoading, isError, error, refetch, isFetching } = useHealthQuery();
+  const { data: health, isLoading: healthLoading, isError: healthError } = useHealthQuery();
 
   const isOnline = health?.status === 'ok';
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-[#090d16] p-6 text-slate-100 selection:bg-indigo-500 selection:text-white">
-      <main className="w-full max-w-xl space-y-6">
-        {/* Header Branding */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-5">
-          <div className="flex items-center gap-3.5">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-sky-400 shadow-lg shadow-indigo-500/20">
-              <Activity className="h-6 w-6 text-white" />
+    <div className="min-h-screen bg-[#090d16] text-slate-100 selection:bg-indigo-500 selection:text-white">
+      {/* ------------------------------------------------------------------ */}
+      {/* Header                                                              */}
+      {/* ------------------------------------------------------------------ */}
+      <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur-md">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-sky-400 shadow-lg shadow-indigo-500/20">
+              <Activity className="h-5 w-5 text-white" aria-hidden="true" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold tracking-tight text-white">Personal Data OS</h1>
-                <span className="rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2 py-0.5 font-mono text-xs font-medium text-indigo-400">
-                  v0.1.0
-                </span>
-              </div>
-              <p className="font-mono text-xs text-slate-400">Engineering Foundation</p>
+              <h1 className="text-base font-bold tracking-tight text-white">Personal Data OS</h1>
+              <p className="font-mono text-xs text-slate-500">self-hosted telemetry</p>
             </div>
           </div>
 
-          <button
-            onClick={() => refetch()}
-            disabled={isFetching}
-            title="Refresh status"
-            className="rounded-lg border border-slate-800 bg-slate-900 p-2 text-slate-400 transition hover:border-slate-700 hover:text-white disabled:opacity-50"
+          {/* Compact API health indicator */}
+          <div
+            aria-label={`API status: ${healthLoading ? 'checking' : isOnline ? 'online' : 'offline'}`}
+            className="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900 px-3 py-1.5"
           >
-            <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
-
-        {/* System Health Status Card */}
-        <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl backdrop-blur-md">
-          <div className="flex items-center justify-between">
-            <span className="font-mono text-xs font-semibold uppercase tracking-wider text-slate-400">
-              System Telemetry
-            </span>
-            <span className="font-mono text-xs text-slate-500">GET /health</span>
-          </div>
-
-          <div className="flex items-center justify-between rounded-xl border border-slate-800/80 bg-slate-950/60 p-4">
-            <div className="flex items-center gap-3">
-              {isLoading ? (
-                <div className="h-3.5 w-3.5 animate-pulse rounded-full bg-amber-400" />
-              ) : isOnline ? (
-                <div className="relative flex items-center justify-center">
-                  <div className="h-3.5 w-3.5 rounded-full bg-emerald-400" />
-                  <div className="absolute h-5 w-5 animate-ping rounded-full bg-emerald-400/30" />
-                </div>
-              ) : (
-                <div className="h-3.5 w-3.5 rounded-full bg-rose-500" />
-              )}
-
-              <div>
-                <div className="text-sm font-semibold">
-                  {isLoading ? (
-                    <span className="text-slate-300">Checking API status...</span>
-                  ) : isOnline ? (
-                    <span className="flex items-center gap-1.5 text-emerald-400">
-                      System status: Online <CheckCircle2 className="h-4 w-4" />
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1.5 text-rose-400">
-                      System status: Offline <AlertCircle className="h-4 w-4" />
-                    </span>
-                  )}
-                </div>
-                <div className="mt-0.5 font-mono text-xs text-slate-400">
-                  {health?.service
-                    ? `${health.service} (${health.version})`
-                    : 'Awaiting endpoint response'}
-                </div>
+            {healthLoading ? (
+              <div className="h-2 w-2 animate-pulse rounded-full bg-amber-400" />
+            ) : isOnline ? (
+              <div className="relative flex items-center justify-center">
+                <div className="h-2 w-2 rounded-full bg-emerald-400" />
+                <div className="absolute h-3 w-3 animate-ping rounded-full bg-emerald-400/30" />
               </div>
-            </div>
-
-            <span className="rounded-md border border-slate-700 bg-slate-800 px-2.5 py-1 font-mono text-xs text-slate-300">
-              HTTP {isOnline ? '200 OK' : isError ? 'Error' : '...'}
+            ) : (
+              <div className="h-2 w-2 rounded-full bg-rose-500" />
+            )}
+            <span className="font-mono text-xs text-slate-400">
+              {healthLoading
+                ? 'Checking…'
+                : isOnline
+                  ? 'API Online'
+                  : healthError
+                    ? 'API Offline'
+                    : 'API Offline'}
             </span>
+            {isOnline ? (
+              <CheckCircle2 className="h-3 w-3 text-emerald-400" aria-hidden="true" />
+            ) : (
+              !healthLoading && <AlertCircle className="h-3 w-3 text-rose-400" aria-hidden="true" />
+            )}
           </div>
+        </div>
+      </header>
 
-          {isError && (
-            <div className="rounded-lg border border-rose-500/20 bg-rose-500/10 p-3 font-mono text-xs text-rose-300">
-              {error instanceof Error
-                ? error.message
-                : 'Failed to reach API server at http://localhost:8080'}
+      {/* ------------------------------------------------------------------ */}
+      {/* Main content                                                        */}
+      {/* ------------------------------------------------------------------ */}
+      <main className="mx-auto max-w-6xl px-6 py-8">
+        {/* Section heading */}
+        <section aria-labelledby="sleep-section-heading" className="mb-8">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10 ring-1 ring-indigo-500/20">
+              <Moon className="h-5 w-5 text-indigo-400" aria-hidden="true" />
             </div>
-          )}
+            <div>
+              <h2 id="sleep-section-heading" className="text-xl font-bold text-white">
+                Sleep Tracking
+              </h2>
+              <p className="text-sm text-slate-400">Record and browse your sleep data</p>
+            </div>
+          </div>
         </section>
 
-        {/* Architectural Foundation Overview */}
-        <section className="space-y-3 rounded-2xl border border-slate-800/60 bg-slate-900/40 p-5">
-          <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-            <Layers className="h-4 w-4 text-indigo-400" /> Verified Foundation Stack
-          </h2>
-          <div className="grid grid-cols-2 gap-2 font-mono text-xs text-slate-300">
-            <div className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/40 p-2.5">
-              <Server className="h-4 w-4 text-indigo-400" />
-              <span>Go 1.22 + Chi Router</span>
+        {/* Sleep workspace: form + history */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[380px_1fr]">
+          {/* Form panel */}
+          <aside>
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-xl backdrop-blur-sm">
+              <h3 className="mb-5 flex items-center gap-2 text-sm font-semibold text-slate-200">
+                Add Sleep Record
+              </h3>
+              <SleepForm />
             </div>
-            <div className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/40 p-2.5">
-              <Database className="h-4 w-4 text-sky-400" />
-              <span>PostgreSQL + pgxpool</span>
-            </div>
-          </div>
-        </section>
+          </aside>
 
-        {/* Roadmap Next Phase */}
-        <footer className="pt-2 text-center font-mono text-xs text-slate-500">
-          Next Vertical Slice:{' '}
-          <span className="font-medium text-indigo-400">Sleep Tracking Module</span>
-        </footer>
+          {/* History panel */}
+          <section aria-labelledby="sleep-history-heading">
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-xl backdrop-blur-sm">
+              <h3
+                id="sleep-history-heading"
+                className="mb-5 flex items-center gap-2 text-sm font-semibold text-slate-200"
+              >
+                Sleep History
+              </h3>
+              <SleepHistory />
+            </div>
+          </section>
+        </div>
       </main>
     </div>
   );
