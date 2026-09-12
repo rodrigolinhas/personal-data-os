@@ -1,12 +1,24 @@
 import { z } from 'zod';
 
+export interface ApiErrorDetail {
+  field: string;
+  issue: string;
+}
+
 export class ApiError extends Error {
+  public code?: string;
+  public details?: ApiErrorDetail[];
+
   constructor(
     public status: number,
-    message: string
+    message: string,
+    code?: string,
+    details?: ApiErrorDetail[]
   ) {
     super(message);
     this.name = 'ApiError';
+    this.code = code;
+    this.details = details;
   }
 }
 
@@ -27,8 +39,23 @@ export async function fetchApi<T>(
   });
 
   if (!res.ok) {
-    const errorText = await res.text().catch(() => res.statusText);
-    throw new ApiError(res.status, `API request failed with status ${res.status}: ${errorText}`);
+    const rawText = await res.text().catch(() => res.statusText);
+    try {
+      const body = JSON.parse(rawText) as {
+        error?: { code?: string; message?: string; details?: ApiErrorDetail[] };
+      };
+      if (body.error) {
+        throw new ApiError(
+          res.status,
+          body.error.message ?? rawText,
+          body.error.code,
+          body.error.details
+        );
+      }
+    } catch (e) {
+      if (e instanceof ApiError) throw e;
+    }
+    throw new ApiError(res.status, rawText);
   }
 
   const data = await res.json();
