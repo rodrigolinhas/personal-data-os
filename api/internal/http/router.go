@@ -9,7 +9,7 @@ import (
 )
 
 // NewRouter builds and configures the main Chi HTTP router.
-func NewRouter() *chi.Mux {
+func NewRouter(sleepService SleepService) *chi.Mux {
 	r := chi.NewRouter()
 
 	// Base middlewares
@@ -35,7 +35,11 @@ func NewRouter() *chi.Mux {
 
 	// API v1 namespace router for business domains
 	r.Route("/api/v1", func(api chi.Router) {
-		// Domain modules (Sleep, Reading, Workouts, Habits, GitHub) will mount here
+		sleepHandler := NewSleepHandler(sleepService)
+		api.Route("/sleep", func(sleepRouter chi.Router) {
+			sleepRouter.Post("/", sleepHandler.Create)
+			sleepRouter.Get("/", sleepHandler.List)
+		})
 	})
 
 	return r

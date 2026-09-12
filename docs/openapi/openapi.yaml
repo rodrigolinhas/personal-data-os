@@ -37,7 +37,207 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  error:
-                    type: string
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/sleep:
+    post:
+      summary: Create Sleep Record
+      description: Creates a new sleep record for a wake-up date with server-calculated sleep duration.
+      operationId: createSleepLog
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSleepRequest'
+      responses:
+        '201':
+          description: Sleep record created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SleepLog'
+        '400':
+          description: Malformed JSON or input validation failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: A sleep record already exists for the specified date.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: List Sleep Records
+      description: Retrieves a paginated collection of sleep records ordered newest first (by date descending).
+      operationId: listSleepLogs
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of records to return (1-100, default 20).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          required: false
+          description: Number of records to skip (default 0).
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Paginated collection of sleep records (empty array if no records exist).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SleepLog'
+        '400':
+          description: Invalid pagination parameter.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    CreateSleepRequest:
+      type: object
+      required:
+        - date
+        - bedtime
+        - wake_time
+        - quality
+      properties:
+        date:
+          type: string
+          format: date
+          example: '2026-09-11'
+          description: Wake-up date in YYYY-MM-DD format.
+        bedtime:
+          type: string
+          pattern: '^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$'
+          example: '23:30'
+          description: Time went to bed (HH:MM or HH:MM:SS).
+        wake_time:
+          type: string
+          pattern: '^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$'
+          example: '07:00'
+          description: Time woke up (HH:MM or HH:MM:SS). Must not equal bedtime.
+        quality:
+          type: integer
+          minimum: 1
+          maximum: 10
+          example: 8
+          description: Subjective sleep quality score from 1 (terrible) to 10 (optimal).
+        notes:
+          type: string
+          nullable: true
+          example: 'Synthetic example sleep record'
+          description: Optional user observations or contextual notes.
+
+    SleepLog:
+      type: object
+      required:
+        - id
+        - date
+        - bedtime
+        - wake_time
+        - duration_minutes
+        - quality
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        date:
+          type: string
+          format: date
+          example: '2026-09-11'
+        bedtime:
+          type: string
+          example: '23:30'
+        wake_time:
+          type: string
+          example: '07:00'
+        duration_minutes:
+          type: integer
+          minimum: 1
+          example: 450
+          description: Server-calculated duration in minutes.
+        quality:
+          type: integer
+          minimum: 1
+          maximum: 10
+          example: 8
+        notes:
+          type: string
+          nullable: true
+          example: 'Synthetic example sleep record'
+        created_at:
+          type: string
+          format: date-time
+          example: '2026-09-11T12:00:00Z'
+        updated_at:
+          type: string
+          format: date-time
+          example: '2026-09-11T12:00:00Z'
+
+    ErrorDetail:
+      type: object
+      required:
+        - field
+        - issue
+      properties:
+        field:
+          type: string
+          example: quality
+        issue:
+          type: string
+          example: must be <= 10
+
+    ErrorBody:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: quality must be an integer between 1 and 10
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorBody'
