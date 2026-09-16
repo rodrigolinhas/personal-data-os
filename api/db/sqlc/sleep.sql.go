@@ -65,6 +65,20 @@ func (q *Queries) CreateSleepLog(ctx context.Context, arg CreateSleepLogParams) 
 	return i, err
 }
 
+const deleteSleepLog = `-- name: DeleteSleepLog :execrows
+DELETE FROM sleep_logs
+WHERE id = $1
+`
+
+// Deletes a sleep record by id and returns the number of affected rows.
+func (q *Queries) DeleteSleepLog(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteSleepLog, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const listSleepLogs = `-- name: ListSleepLogs :many
 SELECT id, date, bedtime, wake_time, duration_minutes, quality, notes, created_at, updated_at
 FROM sleep_logs
@@ -107,4 +121,55 @@ func (q *Queries) ListSleepLogs(ctx context.Context, arg ListSleepLogsParams) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateSleepLog = `-- name: UpdateSleepLog :one
+UPDATE sleep_logs
+SET
+    date = $2,
+    bedtime = $3,
+    wake_time = $4,
+    duration_minutes = $5,
+    quality = $6,
+    notes = $7,
+    updated_at = NOW()
+WHERE id = $1
+RETURNING id, date, bedtime, wake_time, duration_minutes, quality, notes, created_at, updated_at
+`
+
+type UpdateSleepLogParams struct {
+	ID              int64       `json:"id"`
+	Date            pgtype.Date `json:"date"`
+	Bedtime         pgtype.Time `json:"bedtime"`
+	WakeTime        pgtype.Time `json:"wake_time"`
+	DurationMinutes int32       `json:"duration_minutes"`
+	Quality         int16       `json:"quality"`
+	Notes           pgtype.Text `json:"notes"`
+}
+
+// Updates an existing sleep record and returns the persisted row.
+// duration_minutes is recalculated and supplied by the backend service (#14).
+func (q *Queries) UpdateSleepLog(ctx context.Context, arg UpdateSleepLogParams) (SleepLog, error) {
+	row := q.db.QueryRow(ctx, updateSleepLog,
+		arg.ID,
+		arg.Date,
+		arg.Bedtime,
+		arg.WakeTime,
+		arg.DurationMinutes,
+		arg.Quality,
+		arg.Notes,
+	)
+	var i SleepLog
+	err := row.Scan(
+		&i.ID,
+		&i.Date,
+		&i.Bedtime,
+		&i.WakeTime,
+		&i.DurationMinutes,
+		&i.Quality,
+		&i.Notes,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

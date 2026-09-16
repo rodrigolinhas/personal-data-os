@@ -16,8 +16,13 @@ type Querier interface {
 	// A unique constraint on date means a duplicate date raises a uniqueness violation
 	// that #12 will translate into HTTP 409 Conflict.
 	CreateSleepLog(ctx context.Context, arg CreateSleepLogParams) (SleepLog, error)
+	// Deletes a sleep record by id and returns the number of affected rows.
+	DeleteSleepLog(ctx context.Context, id int64) (int64, error)
 	// Returns sleep records ordered newest first, with LIMIT/OFFSET pagination.
 	ListSleepLogs(ctx context.Context, arg ListSleepLogsParams) ([]SleepLog, error)
+	// Updates an existing sleep record and returns the persisted row.
+	// duration_minutes is recalculated and supplied by the backend service (#14).
+	UpdateSleepLog(ctx context.Context, arg UpdateSleepLogParams) (SleepLog, error)
 }
 
 var _ Querier = (*Queries)(nil)

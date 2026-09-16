@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -431,5 +432,256 @@ func TestListSleepLogs_Offset(t *testing.T) {
 	// First result after skipping newest (day 27) should be day 25.
 	if logs[0].Date.Time.Day() != 25 {
 		t.Errorf("Expected day 25 after OFFSET 1, got day %d", logs[0].Date.Time.Day())
+	}
+}
+
+// TestUpdateSleepLog_ValidRecord verifies that an existing record can be updated
+// and all mutable fields are persisted. created_at must remain unchanged.
+func TestUpdateSleepLog_ValidRecord(t *testing.T) {
+	pool := connectTestDB(t)
+	defer pool.Close()
+	cleanSleepLogs(t, pool)
+
+	q := sqlcdb.New(pool)
+	ctx := context.Background()
+
+	// Create original record
+	original, err := q.CreateSleepLog(ctx, sqlcdb.CreateSleepLogParams{
+		Date:            syntheticDate(2026, time.September, 10),
+		Bedtime:         syntheticTime(23, 0),
+		WakeTime:        syntheticTime(7, 0),
+		DurationMinutes: 480,
+		Quality:         7,
+		Notes:           syntheticText("original note"),
+	})
+	if err != nil {
+		t.Fatalf("CreateSleepLog failed: %v", err)
+	}
+
+	// Small sleep to ensure updated_at can differ if DB precision allows.
+	// We compare >= rather than strict >, so this is just defensive.
+	time.Sleep(10 * time.Millisecond)
+
+	note := "updated synthetic note"
+	updated, err := q.UpdateSleepLog(ctx, sqlcdb.UpdateSleepLogParams{
+		ID:              original.ID,
+		Date:            syntheticDate(2026, time.September, 11),
+		Bedtime:         syntheticTime(22, 30),
+		WakeTime:        syntheticTime(6, 30),
+		DurationMinutes: 480, // new duration (same in this case, just different times)
+		Quality:         9,
+		Notes:           pgtype.Text{String: note, Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("UpdateSleepLog failed: %v", err)
+	}
+
+	// Verify mutable fields changed
+	if updated.ID != original.ID {
+		t.Errorf("expected ID %d, got %d", original.ID, updated.ID)
+	}
+	if updated.Date.Time.Day() != 11 {
+		t.Errorf("expected date day 11, got %d", updated.Date.Time.Day())
+	}
+	bedSec := updated.Bedtime.Microseconds / 1_000_000
+	if bedSec/3600 != 22 || (bedSec%3600)/60 != 30 {
+		t.Errorf("expected bedtime 22:30, got microseconds %d", updated.Bedtime.Microseconds)
+	}
+	wakeSec := updated.WakeTime.Microseconds / 1_000_000
+	if wakeSec/3600 != 6 || (wakeSec%3600)/60 != 30 {
+		t.Errorf("expected wake_time 06:30, got microseconds %d", updated.WakeTime.Microseconds)
+	}
+	if updated.Quality != 9 {
+		t.Errorf("expected quality 9, got %d", updated.Quality)
+	}
+	if !updated.Notes.Valid || updated.Notes.String != note {
+		t.Errorf("expected notes %q, got %+v", note, updated.Notes)
+	}
+
+	// created_at must not change
+	if !updated.CreatedAt.Valid || !original.CreatedAt.Valid {
+		t.Fatal("expected both created_at to be valid")
+	}
+	if !updated.CreatedAt.Time.Equal(original.CreatedAt.Time) {
+		t.Errorf("created_at changed: original=%v, updated=%v", original.CreatedAt.Time, updated.CreatedAt.Time)
+	}
+
+	// updated_at must be >= original updated_at
+	if !updated.UpdatedAt.Valid {
+		t.Fatal("expected updated_at to be valid")
+	}
+	if updated.UpdatedAt.Time.Before(original.UpdatedAt.Time) {
+		t.Errorf("updated_at went backwards: original=%v updated=%v", original.UpdatedAt.Time, updated.UpdatedAt.Time)
+	}
+}
+
+// TestUpdateSleepLog_SelfDateUpdate verifies that updating quality/notes while
+// keeping the same date does not trigger a unique constraint violation.
+func TestUpdateSleepLog_SelfDateUpdate(t *testing.T) {
+	pool := connectTestDB(t)
+	defer pool.Close()
+	cleanSleepLogs(t, pool)
+
+	q := sqlcdb.New(pool)
+	ctx := context.Background()
+
+	original, err := q.CreateSleepLog(ctx, sqlcdb.CreateSleepLogParams{
+		Date:            syntheticDate(2026, time.September, 11),
+		Bedtime:         syntheticTime(23, 30),
+		WakeTime:        syntheticTime(7, 0),
+		DurationMinutes: 450,
+		Quality:         7,
+	})
+	if err != nil {
+		t.Fatalf("CreateSleepLog failed: %v", err)
+	}
+
+	// Update quality while keeping the same date — must succeed.
+	updated, err := q.UpdateSleepLog(ctx, sqlcdb.UpdateSleepLogParams{
+		ID:              original.ID,
+		Date:            syntheticDate(2026, time.September, 11), // same date
+		Bedtime:         syntheticTime(23, 30),
+		WakeTime:        syntheticTime(7, 0),
+		DurationMinutes: 450,
+		Quality:         8,
+	})
+	if err != nil {
+		t.Fatalf("UpdateSleepLog (self-date update) failed: %v", err)
+	}
+	if updated.Quality != 8 {
+		t.Errorf("expected quality 8, got %d", updated.Quality)
+	}
+}
+
+// TestUpdateSleepLog_DuplicateDate verifies that changing a record's date to one
+// already occupied by another record raises SQLSTATE 23505 on sleep_logs_date_key.
+func TestUpdateSleepLog_DuplicateDate(t *testing.T) {
+	pool := connectTestDB(t)
+	defer pool.Close()
+	cleanSleepLogs(t, pool)
+
+	q := sqlcdb.New(pool)
+	ctx := context.Background()
+
+	r1, err := q.CreateSleepLog(ctx, sqlcdb.CreateSleepLogParams{
+		Date: syntheticDate(2026, time.September, 10), Bedtime: syntheticTime(23, 0),
+		WakeTime: syntheticTime(7, 0), DurationMinutes: 480, Quality: 7,
+	})
+	if err != nil {
+		t.Fatalf("first insert failed: %v", err)
+	}
+	_, err = q.CreateSleepLog(ctx, sqlcdb.CreateSleepLogParams{
+		Date: syntheticDate(2026, time.September, 11), Bedtime: syntheticTime(23, 0),
+		WakeTime: syntheticTime(7, 0), DurationMinutes: 480, Quality: 7,
+	})
+	if err != nil {
+		t.Fatalf("second insert failed: %v", err)
+	}
+
+	// Try to move r1's date to 2026-09-11 — must conflict.
+	_, err = q.UpdateSleepLog(ctx, sqlcdb.UpdateSleepLogParams{
+		ID:              r1.ID,
+		Date:            syntheticDate(2026, time.September, 11),
+		Bedtime:         syntheticTime(23, 0),
+		WakeTime:        syntheticTime(7, 0),
+		DurationMinutes: 480,
+		Quality:         7,
+	})
+	if err == nil {
+		t.Fatal("expected unique constraint violation, got nil")
+	}
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		t.Fatalf("expected *pgconn.PgError, got %T: %v", err, err)
+	}
+	if pgErr.Code != "23505" {
+		t.Errorf("expected SQLSTATE 23505, got %q", pgErr.Code)
+	}
+	if pgErr.ConstraintName != "sleep_logs_date_key" {
+		t.Errorf("expected constraint sleep_logs_date_key, got %q", pgErr.ConstraintName)
+	}
+}
+
+// TestUpdateSleepLog_NotFound verifies that updating a non-existent ID returns pgx.ErrNoRows.
+func TestUpdateSleepLog_NotFound(t *testing.T) {
+	pool := connectTestDB(t)
+	defer pool.Close()
+	cleanSleepLogs(t, pool)
+
+	q := sqlcdb.New(pool)
+	ctx := context.Background()
+
+	_, err := q.UpdateSleepLog(ctx, sqlcdb.UpdateSleepLogParams{
+		ID:              999999,
+		Date:            syntheticDate(2026, time.September, 11),
+		Bedtime:         syntheticTime(23, 0),
+		WakeTime:        syntheticTime(7, 0),
+		DurationMinutes: 480,
+		Quality:         7,
+	})
+	if err == nil {
+		t.Fatal("expected pgx.ErrNoRows for non-existent ID, got nil")
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("expected pgx.ErrNoRows, got %T: %v", err, err)
+	}
+}
+
+// TestDeleteSleepLog_ExistingRecord verifies that deleting an existing row
+// returns 1 affected row and the row is removed from the table.
+func TestDeleteSleepLog_ExistingRecord(t *testing.T) {
+	pool := connectTestDB(t)
+	defer pool.Close()
+	cleanSleepLogs(t, pool)
+
+	q := sqlcdb.New(pool)
+	ctx := context.Background()
+
+	record, err := q.CreateSleepLog(ctx, sqlcdb.CreateSleepLogParams{
+		Date:            syntheticDate(2026, time.September, 11),
+		Bedtime:         syntheticTime(23, 0),
+		WakeTime:        syntheticTime(7, 0),
+		DurationMinutes: 480,
+		Quality:         7,
+	})
+	if err != nil {
+		t.Fatalf("CreateSleepLog failed: %v", err)
+	}
+
+	rowsAffected, err := q.DeleteSleepLog(ctx, record.ID)
+	if err != nil {
+		t.Fatalf("DeleteSleepLog failed: %v", err)
+	}
+	if rowsAffected != 1 {
+		t.Errorf("expected 1 row affected, got %d", rowsAffected)
+	}
+
+	// Verify the row is actually gone.
+	logs, err := q.ListSleepLogs(ctx, sqlcdb.ListSleepLogsParams{Limit: 100, Offset: 0})
+	if err != nil {
+		t.Fatalf("ListSleepLogs failed: %v", err)
+	}
+	for _, l := range logs {
+		if l.ID == record.ID {
+			t.Errorf("expected record %d to be deleted, but it still exists", record.ID)
+		}
+	}
+}
+
+// TestDeleteSleepLog_NotFound verifies that deleting a non-existent ID returns 0 rows affected.
+func TestDeleteSleepLog_NotFound(t *testing.T) {
+	pool := connectTestDB(t)
+	defer pool.Close()
+	cleanSleepLogs(t, pool)
+
+	q := sqlcdb.New(pool)
+	ctx := context.Background()
+
+	rowsAffected, err := q.DeleteSleepLog(ctx, 999999)
+	if err != nil {
+		t.Fatalf("DeleteSleepLog returned unexpected error: %v", err)
+	}
+	if rowsAffected != 0 {
+		t.Errorf("expected 0 rows affected for non-existent ID, got %d", rowsAffected)
 	}
 }
