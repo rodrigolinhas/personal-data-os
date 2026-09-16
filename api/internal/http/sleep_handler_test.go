@@ -19,6 +19,8 @@ import (
 type mockSleepService struct {
 	createFn func(ctx context.Context, in sleep.CreateInput) (sqlc.SleepLog, error)
 	listFn   func(ctx context.Context, limit, offset int32) ([]sqlc.SleepLog, error)
+	updateFn func(ctx context.Context, id int64, in sleep.UpdateInput) (sqlc.SleepLog, error)
+	deleteFn func(ctx context.Context, id int64) error
 }
 
 func (m *mockSleepService) Create(ctx context.Context, in sleep.CreateInput) (sqlc.SleepLog, error) {
@@ -33,6 +35,20 @@ func (m *mockSleepService) List(ctx context.Context, limit, offset int32) ([]sql
 		return m.listFn(ctx, limit, offset)
 	}
 	return []sqlc.SleepLog{}, nil
+}
+
+func (m *mockSleepService) Update(ctx context.Context, id int64, in sleep.UpdateInput) (sqlc.SleepLog, error) {
+	if m.updateFn != nil {
+		return m.updateFn(ctx, id, in)
+	}
+	return sqlc.SleepLog{}, nil
+}
+
+func (m *mockSleepService) Delete(ctx context.Context, id int64) error {
+	if m.deleteFn != nil {
+		return m.deleteFn(ctx, id)
+	}
+	return nil
 }
 
 func syntheticSleepLog(id int64, date string, bedMicros, wakeMicros int64, duration int32, quality int16, notes *string) sqlc.SleepLog {
@@ -464,6 +480,282 @@ func TestSleepHandler_List(t *testing.T) {
 
 			if tt.verifyResponse != nil {
 				tt.verifyResponse(t, rr.Body.Bytes())
+			}
+		})
+	}
+}
+
+// --- Update handler tests ---
+
+func TestSleepHandler_Update(t *testing.T) {
+	tests := []struct {
+		name           string
+		path           string
+		requestBody    string
+		serviceFn      func(ctx context.Context, id int64, in sleep.UpdateInput) (sqlc.SleepLog, error)
+		expectedStatus int
+		verifyResponse func(t *testing.T, body []byte)
+	}{
+		{
+			name:        "Valid update returns 200 with recalculated duration",
+			path:        "/api/v1/sleep/1",
+			requestBody: `{"date":"2026-09-11","bedtime":"23:30","wake_time":"07:00","quality":9,"notes":"updated note"}`,
+			serviceFn: func(ctx context.Context, id int64, in sleep.UpdateInput) (sqlc.SleepLog, error) {
+				// 23:30 -> 07:00 = 450 minutes
+				return syntheticSleepLog(id, in.Date, 84600000000, 25200000000, 450, in.Quality, in.Notes), nil
+			},
+			expectedStatus: http.StatusOK,
+			verifyResponse: func(t *testing.T, body []byte) {
+				var resp SleepResponse
+				if err := json.Unmarshal(body, &resp); err != nil {
+					t.Fatalf("failed to parse response: %v", err)
+				}
+				if resp.ID != 1 {
+					t.Errorf("expected ID 1, got %d", resp.ID)
+				}
+				if resp.DurationMinutes != 450 {
+					t.Errorf("expected duration 450, got %d", resp.DurationMinutes)
+				}
+				if resp.Quality != 9 {
+					t.Errorf("expected quality 9, got %d", resp.Quality)
+				}
+				if resp.Bedtime != "23:30" || resp.WakeTime != "07:00" {
+					t.Errorf("unexpected times: bedtime=%s wake=%s", resp.Bedtime, resp.WakeTime)
+				}
+			},
+		},
+		{
+			name:           "Malformed ID returns 400",
+			path:           "/api/v1/sleep/abc",
+			requestBody:    `{"date":"2026-09-11","bedtime":"23:30","wake_time":"07:00","quality":8}`,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "Zero ID returns 400",
+			path:           "/api/v1/sleep/0",
+			requestBody:    `{"date":"2026-09-11","bedtime":"23:30","wake_time":"07:00","quality":8}`,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "Negative ID returns 400",
+			path:           "/api/v1/sleep/-1",
+			requestBody:    `{"date":"2026-09-11","bedtime":"23:30","wake_time":"07:00","quality":8}`,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "Malformed JSON returns 400",
+			path:           "/api/v1/sleep/1",
+			requestBody:    `{not-valid-json}`,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "Unknown field duration_minutes rejected",
+			path:           "/api/v1/sleep/1",
+			requestBody:    `{"date":"2026-09-11","bedtime":"23:30","wake_time":"07:00","quality":8,"duration_minutes":999}`,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "Multiple JSON values rejected",
+			path:           "/api/v1/sleep/1",
+			requestBody:    `{"date":"2026-09-11","bedtime":"23:30","wake_time":"07:00","quality":8}{"date":"2026-09-12","bedtime":"22:00","wake_time":"06:00","quality":7}`,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "Missing date returns 400",
+			path:           "/api/v1/sleep/1",
+			requestBody:    `{"bedtime":"23:30","wake_time":"07:00","quality":8}`,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "Missing bedtime returns 400",
+			path:           "/api/v1/sleep/1",
+			requestBody:    `{"date":"2026-09-11","wake_time":"07:00","quality":8}`,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "Missing wake_time returns 400",
+			path:           "/api/v1/sleep/1",
+			requestBody:    `{"date":"2026-09-11","bedtime":"23:30","quality":8}`,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "Missing quality returns 400",
+			path:           "/api/v1/sleep/1",
+			requestBody:    `{"date":"2026-09-11","bedtime":"23:30","wake_time":"07:00"}`,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "Quality below 1 returns 400",
+			path:           "/api/v1/sleep/1",
+			requestBody:    `{"date":"2026-09-11","bedtime":"23:30","wake_time":"07:00","quality":0}`,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "Quality above 10 returns 400",
+			path:           "/api/v1/sleep/1",
+			requestBody:    `{"date":"2026-09-11","bedtime":"23:30","wake_time":"07:00","quality":11}`,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "Equal bedtime and wake_time returns 400",
+			path:           "/api/v1/sleep/1",
+			requestBody:    `{"date":"2026-09-11","bedtime":"08:00","wake_time":"08:00","quality":8}`,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:        "Not found returns 404",
+			path:        "/api/v1/sleep/99999",
+			requestBody: `{"date":"2026-09-11","bedtime":"23:30","wake_time":"07:00","quality":8}`,
+			serviceFn: func(ctx context.Context, id int64, in sleep.UpdateInput) (sqlc.SleepLog, error) {
+				return sqlc.SleepLog{}, sleep.ErrNotFound
+			},
+			expectedStatus: http.StatusNotFound,
+			verifyResponse: func(t *testing.T, body []byte) {
+				var resp ErrorResponse
+				if err := json.Unmarshal(body, &resp); err != nil {
+					t.Fatalf("failed to parse error response: %v", err)
+				}
+				if resp.Error.Code != "NOT_FOUND" {
+					t.Errorf("expected NOT_FOUND code, got %q", resp.Error.Code)
+				}
+			},
+		},
+		{
+			name:        "Duplicate date returns 409",
+			path:        "/api/v1/sleep/1",
+			requestBody: `{"date":"2026-09-12","bedtime":"23:30","wake_time":"07:00","quality":8}`,
+			serviceFn: func(ctx context.Context, id int64, in sleep.UpdateInput) (sqlc.SleepLog, error) {
+				return sqlc.SleepLog{}, sleep.ErrDuplicateDate
+			},
+			expectedStatus: http.StatusConflict,
+			verifyResponse: func(t *testing.T, body []byte) {
+				var resp ErrorResponse
+				if err := json.Unmarshal(body, &resp); err != nil {
+					t.Fatalf("failed to parse error response: %v", err)
+				}
+				if resp.Error.Code != "CONFLICT" {
+					t.Errorf("expected CONFLICT code, got %q", resp.Error.Code)
+				}
+			},
+		},
+		{
+			name:        "Unexpected service error returns 500",
+			path:        "/api/v1/sleep/1",
+			requestBody: `{"date":"2026-09-11","bedtime":"23:30","wake_time":"07:00","quality":8}`,
+			serviceFn: func(ctx context.Context, id int64, in sleep.UpdateInput) (sqlc.SleepLog, error) {
+				return sqlc.SleepLog{}, errors.New("unexpected db failure")
+			},
+			expectedStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockSvc := &mockSleepService{updateFn: tt.serviceFn}
+			handler := NewSleepHandler(mockSvc)
+
+			// Route via the real router so Chi resolves {id}
+			router := NewRouter(mockSvc)
+
+			req := httptest.NewRequest(http.MethodPut, tt.path, bytes.NewBufferString(tt.requestBody))
+			req.Header.Set("Content-Type", "application/json")
+			_ = handler // referenced to satisfy linter; routing done via router below
+			rr := httptest.NewRecorder()
+
+			router.ServeHTTP(rr, req)
+
+			if rr.Code != tt.expectedStatus {
+				t.Fatalf("expected status %d, got %d. Body: %s", tt.expectedStatus, rr.Code, rr.Body.String())
+			}
+
+			if tt.verifyResponse != nil {
+				tt.verifyResponse(t, rr.Body.Bytes())
+			}
+		})
+	}
+}
+
+// --- Delete handler tests ---
+
+func TestSleepHandler_Delete(t *testing.T) {
+	tests := []struct {
+		name           string
+		path           string
+		serviceFn      func(ctx context.Context, id int64) error
+		expectedStatus int
+		verifyBody     func(t *testing.T, body []byte)
+	}{
+		{
+			name: "Existing ID returns 204 with empty body",
+			path: "/api/v1/sleep/1",
+			serviceFn: func(ctx context.Context, id int64) error {
+				return nil
+			},
+			expectedStatus: http.StatusNoContent,
+			verifyBody: func(t *testing.T, body []byte) {
+				if len(body) != 0 {
+					t.Errorf("expected empty body for 204, got %q", string(body))
+				}
+			},
+		},
+		{
+			name:           "Malformed ID returns 400",
+			path:           "/api/v1/sleep/abc",
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "Zero ID returns 400",
+			path:           "/api/v1/sleep/0",
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "Negative ID returns 400",
+			path:           "/api/v1/sleep/-1",
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name: "Missing record returns 404",
+			path: "/api/v1/sleep/99999",
+			serviceFn: func(ctx context.Context, id int64) error {
+				return sleep.ErrNotFound
+			},
+			expectedStatus: http.StatusNotFound,
+			verifyBody: func(t *testing.T, body []byte) {
+				var resp ErrorResponse
+				if err := json.Unmarshal(body, &resp); err != nil {
+					t.Fatalf("failed to parse error response: %v", err)
+				}
+				if resp.Error.Code != "NOT_FOUND" {
+					t.Errorf("expected NOT_FOUND code, got %q", resp.Error.Code)
+				}
+			},
+		},
+		{
+			name: "Unexpected service error returns 500",
+			path: "/api/v1/sleep/1",
+			serviceFn: func(ctx context.Context, id int64) error {
+				return errors.New("unexpected db failure")
+			},
+			expectedStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockSvc := &mockSleepService{deleteFn: tt.serviceFn}
+			router := NewRouter(mockSvc)
+
+			req := httptest.NewRequest(http.MethodDelete, tt.path, nil)
+			rr := httptest.NewRecorder()
+
+			router.ServeHTTP(rr, req)
+
+			if rr.Code != tt.expectedStatus {
+				t.Fatalf("expected status %d, got %d. Body: %s", tt.expectedStatus, rr.Code, rr.Body.String())
+			}
+
+			if tt.verifyBody != nil {
+				tt.verifyBody(t, rr.Body.Bytes())
 			}
 		})
 	}

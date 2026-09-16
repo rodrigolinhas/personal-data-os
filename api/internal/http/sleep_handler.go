@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
 	"personal-data-os/api/db/sqlc"
 	"personal-data-os/api/internal/sleep"
 )
@@ -25,6 +27,8 @@ const (
 type SleepService interface {
 	Create(ctx context.Context, in sleep.CreateInput) (sqlc.SleepLog, error)
 	List(ctx context.Context, limit, offset int32) ([]sqlc.SleepLog, error)
+	Update(ctx context.Context, id int64, in sleep.UpdateInput) (sqlc.SleepLog, error)
+	Delete(ctx context.Context, id int64) error
 }
 
 // SleepHandler handles HTTP transport for the Sleep Tracking domain.
@@ -37,7 +41,7 @@ func NewSleepHandler(service SleepService) *SleepHandler {
 	return &SleepHandler{service: service}
 }
 
-// CreateSleepRequest defines the incoming JSON payload for creating a sleep record.
+// CreateSleepRequest defines the incoming JSON payload for creating or updating a sleep record.
 type CreateSleepRequest struct {
 	Date     *string `json:"date"`
 	Bedtime  *string `json:"bedtime"`
@@ -46,41 +50,20 @@ type CreateSleepRequest struct {
 	Notes    *string `json:"notes"`
 }
 
-// SleepResponse defines the public API JSON structure for a sleep record.
-type SleepResponse struct {
-	ID              int64   `json:"id"`
-	Date            string  `json:"date"`
-	Bedtime         string  `json:"bedtime"`
-	WakeTime        string  `json:"wake_time"`
-	DurationMinutes int32   `json:"duration_minutes"`
-	Quality         int16   `json:"quality"`
-	Notes           *string `json:"notes"`
-	CreatedAt       string  `json:"created_at"`
-	UpdatedAt       string  `json:"updated_at"`
+// parseIDParam parses and validates the {id} path parameter.
+// Returns (id, nil) on success, or (0, error) with an already-written 400 response on failure.
+func parseIDParam(r *http.Request) (int64, error) {
+	raw := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || id <= 0 {
+		return 0, fmt.Errorf("invalid id %q: must be a positive integer", raw)
+	}
+	return id, nil
 }
 
-// Create handles POST /api/v1/sleep.
-func (h *SleepHandler) Create(w http.ResponseWriter, r *http.Request) {
-	if h.service == nil {
-		slog.Error("Sleep service is nil on Create request")
-		RespondError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "database service unavailable", nil)
-		return
-	}
-
-	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-
-	var req CreateSleepRequest
-	if err := dec.Decode(&req); err != nil {
-		RespondError(w, http.StatusBadRequest, "VALIDATION_ERROR", fmt.Sprintf("malformed JSON: %v", err), nil)
-		return
-	}
-
-	if dec.More() {
-		RespondError(w, http.StatusBadRequest, "VALIDATION_ERROR", "request body must contain a single JSON object", nil)
-		return
-	}
-
+// validateSleepInput validates the fields shared by Create and Update requests.
+// Returns nil on success, or a slice of ErrorDetails.
+func validateSleepInput(req *CreateSleepRequest) []ErrorDetail {
 	var details []ErrorDetail
 
 	if req.Date == nil || strings.TrimSpace(*req.Date) == "" {
@@ -120,6 +103,45 @@ func (h *SleepHandler) Create(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	return details
+}
+
+// SleepResponse defines the public API JSON structure for a sleep record.
+type SleepResponse struct {
+	ID              int64   `json:"id"`
+	Date            string  `json:"date"`
+	Bedtime         string  `json:"bedtime"`
+	WakeTime        string  `json:"wake_time"`
+	DurationMinutes int32   `json:"duration_minutes"`
+	Quality         int16   `json:"quality"`
+	Notes           *string `json:"notes"`
+	CreatedAt       string  `json:"created_at"`
+	UpdatedAt       string  `json:"updated_at"`
+}
+
+// Create handles POST /api/v1/sleep.
+func (h *SleepHandler) Create(w http.ResponseWriter, r *http.Request) {
+	if h.service == nil {
+		slog.Error("Sleep service is nil on Create request")
+		RespondError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "database service unavailable", nil)
+		return
+	}
+
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+
+	var req CreateSleepRequest
+	if err := dec.Decode(&req); err != nil {
+		RespondError(w, http.StatusBadRequest, "VALIDATION_ERROR", fmt.Sprintf("malformed JSON: %v", err), nil)
+		return
+	}
+
+	if dec.More() {
+		RespondError(w, http.StatusBadRequest, "VALIDATION_ERROR", "request body must contain a single JSON object", nil)
+		return
+	}
+
+	details := validateSleepInput(&req)
 	if len(details) > 0 {
 		msg := "validation failed"
 		if len(details) == 1 && details[0].Field == "quality" {
@@ -242,4 +264,95 @@ func toSleepResponse(log sqlc.SleepLog) SleepResponse {
 		CreatedAt:       createdAtStr,
 		UpdatedAt:       updatedAtStr,
 	}
+}
+
+// Update handles PUT /api/v1/sleep/{id}.
+func (h *SleepHandler) Update(w http.ResponseWriter, r *http.Request) {
+	if h.service == nil {
+		slog.Error("Sleep service is nil on Update request")
+		RespondError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "database service unavailable", nil)
+		return
+	}
+
+	id, err := parseIDParam(r)
+	if err != nil {
+		RespondError(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error(), nil)
+		return
+	}
+
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+
+	var req CreateSleepRequest
+	if err := dec.Decode(&req); err != nil {
+		RespondError(w, http.StatusBadRequest, "VALIDATION_ERROR", fmt.Sprintf("malformed JSON: %v", err), nil)
+		return
+	}
+
+	if dec.More() {
+		RespondError(w, http.StatusBadRequest, "VALIDATION_ERROR", "request body must contain a single JSON object", nil)
+		return
+	}
+
+	details := validateSleepInput(&req)
+	if len(details) > 0 {
+		msg := "validation failed"
+		if len(details) == 1 && details[0].Field == "quality" {
+			msg = "quality must be an integer between 1 and 10"
+		}
+		RespondError(w, http.StatusBadRequest, "VALIDATION_ERROR", msg, details)
+		return
+	}
+
+	input := sleep.UpdateInput{
+		Date:     *req.Date,
+		Bedtime:  *req.Bedtime,
+		WakeTime: *req.WakeTime,
+		Quality:  int16(*req.Quality),
+		Notes:    req.Notes,
+	}
+
+	record, err := h.service.Update(r.Context(), id, input)
+	if err != nil {
+		if errors.Is(err, sleep.ErrNotFound) {
+			RespondError(w, http.StatusNotFound, "NOT_FOUND", "sleep record not found", nil)
+			return
+		}
+		if errors.Is(err, sleep.ErrDuplicateDate) {
+			RespondError(w, http.StatusConflict, "CONFLICT", "a sleep record already exists for this date", nil)
+			return
+		}
+		slog.Error("Failed to update sleep record", "error", err)
+		RespondError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error", nil)
+		return
+	}
+
+	RespondJSON(w, http.StatusOK, toSleepResponse(record))
+}
+
+// Delete handles DELETE /api/v1/sleep/{id}.
+func (h *SleepHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	if h.service == nil {
+		slog.Error("Sleep service is nil on Delete request")
+		RespondError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "database service unavailable", nil)
+		return
+	}
+
+	id, err := parseIDParam(r)
+	if err != nil {
+		RespondError(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error(), nil)
+		return
+	}
+
+	if err := h.service.Delete(r.Context(), id); err != nil {
+		if errors.Is(err, sleep.ErrNotFound) {
+			RespondError(w, http.StatusNotFound, "NOT_FOUND", "sleep record not found", nil)
+			return
+		}
+		slog.Error("Failed to delete sleep record", "error", err)
+		RespondError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error", nil)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
