@@ -25,3 +25,24 @@ FROM sleep_logs
 ORDER BY date DESC
 LIMIT $1
 OFFSET $2;
+
+-- name: UpdateSleepLog :one
+-- Updates an existing sleep record and returns the persisted row.
+-- duration_minutes is recalculated and supplied by the backend service (#14).
+UPDATE sleep_logs
+SET
+    date = $2,
+    bedtime = $3,
+    wake_time = $4,
+    duration_minutes = $5,
+    quality = $6,
+    notes = $7,
+    updated_at = NOW()
+WHERE id = $1
+RETURNING *;
+
+-- name: DeleteSleepLog :execrows
+-- Deletes a sleep record by id and returns the number of affected rows.
+DELETE FROM sleep_logs
+WHERE id = $1;
+

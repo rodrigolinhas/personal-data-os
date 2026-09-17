@@ -19,6 +19,12 @@ func TestRouterEndpoints(t *testing.T) {
 		listFn: func(ctx context.Context, limit, offset int32) ([]sqlc.SleepLog, error) {
 			return []sqlc.SleepLog{}, nil
 		},
+		updateFn: func(ctx context.Context, id int64, in sleep.UpdateInput) (sqlc.SleepLog, error) {
+			return sqlc.SleepLog{ID: id}, nil
+		},
+		deleteFn: func(ctx context.Context, id int64) error {
+			return nil
+		},
 	}
 	router := NewRouter(mockSvc)
 
@@ -59,6 +65,19 @@ func TestRouterEndpoints(t *testing.T) {
 			path:           "/api/v1/sleep",
 			body:           `{"date":"2026-09-11","bedtime":"23:30","wake_time":"07:00","quality":8}`,
 			expectedStatus: http.StatusCreated,
+		},
+		{
+			name:           "Sleep Route PUT valid",
+			method:         http.MethodPut,
+			path:           "/api/v1/sleep/1",
+			body:           `{"date":"2026-09-11","bedtime":"23:30","wake_time":"07:00","quality":8}`,
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "Sleep Route DELETE valid",
+			method:         http.MethodDelete,
+			path:           "/api/v1/sleep/1",
+			expectedStatus: http.StatusNoContent,
 		},
 	}
 

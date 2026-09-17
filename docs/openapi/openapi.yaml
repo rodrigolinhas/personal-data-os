@@ -48,7 +48,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateSleepRequest'
+              $ref: '#/components/schemas/SleepInput'
       responses:
         '201':
           description: Sleep record created successfully.
@@ -117,11 +117,94 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/sleep/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Unique integer identifier of the sleep record (must be >= 1).
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    put:
+      summary: Update Sleep Record
+      description: >
+        Fully replaces the editable fields of an existing sleep record.
+        The server recalculates `duration_minutes` from `bedtime` and `wake_time`.
+        The client must not supply `duration_minutes`, `id`, `created_at`, or `updated_at`.
+      operationId: updateSleepLog
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SleepInput'
+      responses:
+        '200':
+          description: Sleep record updated successfully. Returns the updated record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SleepLog'
+        '400':
+          description: Malformed JSON, invalid path ID, or input validation failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Sleep record not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: A sleep record already exists for the specified date.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Delete Sleep Record
+      description: Permanently removes the sleep record with the given ID.
+      operationId: deleteSleepLog
+      responses:
+        '204':
+          description: Sleep record deleted successfully. No response body.
+        '400':
+          description: Invalid path ID (non-integer, zero, or negative).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Sleep record not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 
 components:
   schemas:
-    CreateSleepRequest:
+    SleepInput:
       type: object
+      description: >-
+        Editable fields for creating or updating a sleep record.
+        `duration_minutes`, `id`, `created_at`, and `updated_at` are server-controlled and must not be supplied.
       required:
         - date
         - bedtime
@@ -154,6 +237,8 @@ components:
           nullable: true
           example: 'Synthetic example sleep record'
           description: Optional user observations or contextual notes.
+    CreateSleepRequest:
+      $ref: '#/components/schemas/SleepInput'
 
     SleepLog:
       type: object

@@ -39,6 +39,8 @@ func NewRouter(sleepService SleepService) *chi.Mux {
 		api.Route("/sleep", func(sleepRouter chi.Router) {
 			sleepRouter.Post("/", sleepHandler.Create)
 			sleepRouter.Get("/", sleepHandler.List)
+			sleepRouter.Put("/{id}", sleepHandler.Update)
+			sleepRouter.Delete("/{id}", sleepHandler.Delete)
 		})
 	})
 
