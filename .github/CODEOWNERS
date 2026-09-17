@@ -1,0 +1,26 @@
+# CODEOWNERS
+#
+# Automatically assigns reviewers when a PR touches these paths.
+# Requires "Require review from Code Owners" enabled in branch protection rules:
+# Settings → Branches → Branch protection rules → main
+#
+# Syntax: <path-pattern>  <@github-username> [<@github-username2> ...]
+
+# Default owner for everything not matched below
+*                           @rodrigolinhas
+
+# Backend (Go)
+api/                        @rodrigolinhas
+
+# Frontend (React + TypeScript)
+web/                        @rodrigolinhas
+
+# Infrastructure & CI
+.github/                    @rodrigolinhas
+docker-compose.yml          @rodrigolinhas
+
+# Documentation & API contract
+docs/                       @rodrigolinhas
+README.md                   @rodrigolinhas
+CONTRIBUTING.md             @rodrigolinhas
+PROJECT_CONTEXT.md          @rodrigolinhas
