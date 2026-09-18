@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createSleep, listSleep, SleepRecordSchema, SleepListSchema } from '../../api/sleep';
+import {
+  createSleep,
+  deleteSleep,
+  listSleep,
+  SleepRecordSchema,
+  SleepListSchema,
+  updateSleep,
+} from '../../api/sleep';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -147,5 +154,126 @@ describe('createSleep', () => {
     >;
 
     expect(body).not.toHaveProperty('notes');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// updateSleep — URL, method, payload
+// ---------------------------------------------------------------------------
+
+describe('updateSleep', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  it('sends PUT to the correct URL including the record ID', async () => {
+    const mockFetch = vi.mocked(fetch);
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => validRecord,
+    } as Response);
+
+    await updateSleep(42, {
+      date: '2026-08-24',
+      bedtime: '23:30',
+      wake_time: '07:00',
+      quality: 8,
+    });
+
+    const calledUrl = mockFetch.mock.calls[0][0] as string;
+    expect(calledUrl).toContain('/api/v1/sleep/42');
+
+    const options = mockFetch.mock.calls[0][1] as RequestInit;
+    expect(options.method).toBe('PUT');
+  });
+
+  it('sends correct editable fields and does NOT include duration_minutes', async () => {
+    const mockFetch = vi.mocked(fetch);
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => validRecord,
+    } as Response);
+
+    await updateSleep(1, {
+      date: '2026-08-24',
+      bedtime: '23:30',
+      wake_time: '07:00',
+      quality: 8,
+      notes: 'Synthetic sleep record',
+    });
+
+    const body = JSON.parse((mockFetch.mock.calls[0][1] as RequestInit).body as string) as Record<
+      string,
+      unknown
+    >;
+
+    expect(body.date).toBe('2026-08-24');
+    expect(body.bedtime).toBe('23:30');
+    expect(body.wake_time).toBe('07:00');
+    expect(body.quality).toBe(8);
+    expect(body.notes).toBe('Synthetic sleep record');
+
+    // CRITICAL: duration_minutes must never be sent by the client
+    expect(body).not.toHaveProperty('duration_minutes');
+    expect(body).not.toHaveProperty('id');
+    expect(body).not.toHaveProperty('created_at');
+    expect(body).not.toHaveProperty('updated_at');
+  });
+
+  it('validates the PUT response with SleepRecordSchema', async () => {
+    const mockFetch = vi.mocked(fetch);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { duration_minutes: _dm, ...invalidRecord } = validRecord;
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => invalidRecord,
+    } as Response);
+
+    await expect(
+      updateSleep(1, { date: '2026-08-24', bedtime: '23:30', wake_time: '07:00', quality: 8 })
+    ).rejects.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deleteSleep — URL, method, 204 handling
+// ---------------------------------------------------------------------------
+
+describe('deleteSleep', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  it('sends DELETE to the correct URL including the record ID', async () => {
+    const mockFetch = vi.mocked(fetch);
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 204,
+    } as Response);
+
+    await deleteSleep(7);
+
+    const calledUrl = mockFetch.mock.calls[0][0] as string;
+    expect(calledUrl).toContain('/api/v1/sleep/7');
+
+    const options = mockFetch.mock.calls[0][1] as RequestInit;
+    expect(options.method).toBe('DELETE');
+  });
+
+  it('handles 204 No Content without attempting to parse JSON', async () => {
+    const mockFetch = vi.mocked(fetch);
+    const jsonSpy = vi.fn().mockRejectedValue(new Error('No body'));
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 204,
+      json: jsonSpy,
+    } as unknown as Response);
+
+    // Must not throw even though json() would fail
+    await expect(deleteSleep(1)).resolves.toBeUndefined();
+    expect(jsonSpy).not.toHaveBeenCalled();
   });
 });

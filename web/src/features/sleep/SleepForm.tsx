@@ -1,7 +1,12 @@
 import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
-import { CreateSleepInputSchema, useCreateSleepMutation } from '../../api/sleep';
+import { CheckCircle2, AlertCircle, Loader2, X } from 'lucide-react';
+import {
+  CreateSleepInputSchema,
+  SleepRecord,
+  useCreateSleepMutation,
+  useUpdateSleepMutation,
+} from '../../api/sleep';
 import { ApiError } from '../../api/client';
 
 // ---------------------------------------------------------------------------
@@ -15,6 +20,14 @@ type FormValues = {
   quality: string; // input[type=number] returns a string
   notes: string;
 };
+
+export type SleepFormMode = { type: 'create' } | { type: 'edit'; record: SleepRecord };
+
+export interface SleepFormProps {
+  mode?: SleepFormMode;
+  onEditCancel?: () => void;
+  onEditSuccess?: () => void;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -93,22 +106,41 @@ function inputCn(hasError: boolean): string {
 }
 
 // ---------------------------------------------------------------------------
+// Normalize time value for <input type="time">
+// The API may return HH:MM:SS — browsers only need HH:MM.
+// ---------------------------------------------------------------------------
+function normalizeTime(time: string): string {
+  return time.length > 5 ? time.slice(0, 5) : time;
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export const SleepForm: React.FC = () => {
+export const SleepForm: React.FC<SleepFormProps> = ({
+  mode = { type: 'create' },
+  onEditCancel,
+  onEditSuccess,
+}) => {
+  const isEditMode = mode.type === 'edit';
+
   const {
     register,
     handleSubmit,
     reset,
     setError,
+    clearErrors,
     formState: { errors },
   } = useForm<FormValues>({
     defaultValues: { date: '', bedtime: '', wake_time: '', quality: '', notes: '' },
   });
 
-  const mutation = useCreateSleepMutation();
-  const { isSuccess, reset: resetMutation } = mutation;
+  const createMutation = useCreateSleepMutation();
+  const updateMutation = useUpdateSleepMutation();
+
+  // Use the active mutation based on current mode.
+  const activeMutation = isEditMode ? updateMutation : createMutation;
+  const { isSuccess, reset: resetMutation } = activeMutation;
 
   // Auto-clear the success banner after 4 s so the form feels clean.
   useEffect(() => {
@@ -116,6 +148,37 @@ export const SleepForm: React.FC = () => {
     const timer = setTimeout(resetMutation, 4000);
     return () => clearTimeout(timer);
   }, [isSuccess, resetMutation]);
+
+  // When entering edit mode or switching to a different record, pre-fill the form.
+  useEffect(() => {
+    if (mode.type === 'edit') {
+      const { record } = mode;
+      reset({
+        date: record.date,
+        bedtime: normalizeTime(record.bedtime),
+        wake_time: normalizeTime(record.wake_time),
+        quality: String(record.quality),
+        notes: record.notes ?? '',
+      });
+      // Clear any lingering errors from a prior session.
+      clearErrors();
+      // Also reset mutation state when switching records.
+      updateMutation.reset();
+    } else {
+      // Returning to create mode — restore defaults and clear errors.
+      reset({ date: '', bedtime: '', wake_time: '', quality: '', notes: '' });
+      clearErrors();
+      updateMutation.reset();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode.type, mode.type === 'edit' ? mode.record.id : null]);
+
+  const handleCancel = () => {
+    reset({ date: '', bedtime: '', wake_time: '', quality: '', notes: '' });
+    clearErrors();
+    updateMutation.reset();
+    onEditCancel?.();
+  };
 
   const onSubmit = handleSubmit((values) => {
     const validationResult = validateForm(values);
@@ -128,43 +191,122 @@ export const SleepForm: React.FC = () => {
 
     const quality = Number(values.quality);
 
-    mutation.mutate(
-      {
-        date: values.date,
-        bedtime: values.bedtime,
-        wake_time: values.wake_time,
-        quality,
-        notes: values.notes || undefined,
-      },
-      {
-        onSuccess: () => {
-          reset();
+    if (isEditMode && mode.type === 'edit') {
+      const { record } = mode;
+      updateMutation.mutate(
+        {
+          id: record.id,
+          input: {
+            date: values.date,
+            bedtime: values.bedtime,
+            wake_time: values.wake_time,
+            quality,
+            notes: values.notes || undefined,
+          },
         },
-        onError: (err) => {
-          if (err instanceof ApiError) {
-            if (err.status === 409) {
-              setError('date', {
-                message: 'A sleep record already exists for this date.',
-              });
-              return;
-            }
-            if (err.status === 400 && err.details && err.details.length > 0) {
-              for (const detail of err.details) {
-                setError(detail.field as keyof FormValues, { message: detail.issue });
+        {
+          onSuccess: () => {
+            onEditSuccess?.();
+          },
+          onError: (err) => {
+            if (err instanceof ApiError) {
+              if (err.status === 409) {
+                setError('date', {
+                  message: 'A sleep record already exists for that date.',
+                });
+                return;
               }
-              return;
+              if (err.status === 404) {
+                // Record disappeared — the inline 404 banner will show.
+                // Exit edit mode after history refreshes.
+                onEditCancel?.();
+                return;
+              }
+              if (err.status === 400 && err.details && err.details.length > 0) {
+                for (const detail of err.details) {
+                  setError(detail.field as keyof FormValues, { message: detail.issue });
+                }
+                return;
+              }
             }
-          }
-          // Generic server error shown via mutation.error
+            // Generic server/network error — shown via mutation.error banner.
+          },
+        }
+      );
+    } else {
+      createMutation.mutate(
+        {
+          date: values.date,
+          bedtime: values.bedtime,
+          wake_time: values.wake_time,
+          quality,
+          notes: values.notes || undefined,
         },
-      }
-    );
+        {
+          onSuccess: () => {
+            reset();
+          },
+          onError: (err) => {
+            if (err instanceof ApiError) {
+              if (err.status === 409) {
+                setError('date', {
+                  message: 'A sleep record already exists for this date.',
+                });
+                return;
+              }
+              if (err.status === 400 && err.details && err.details.length > 0) {
+                for (const detail of err.details) {
+                  setError(detail.field as keyof FormValues, { message: detail.issue });
+                }
+                return;
+              }
+            }
+            // Generic server error shown via mutation.error
+          },
+        }
+      );
+    }
   });
 
-  const isSubmitting = mutation.isPending;
+  const isSubmitting = activeMutation.isPending;
+
+  // Determine which mutation's error state to display.
+  const mutationError = activeMutation.error;
+  const showGenericError =
+    activeMutation.isError &&
+    !(mutationError instanceof ApiError && [400, 409].includes(mutationError.status));
+
+  // Show the 404 banner separately — the record no longer exists.
+  const show404Error =
+    isEditMode &&
+    updateMutation.isError &&
+    updateMutation.error instanceof ApiError &&
+    updateMutation.error.status === 404;
 
   return (
-    <form onSubmit={onSubmit} noValidate aria-label="Add sleep record" className="space-y-4">
+    <form
+      onSubmit={onSubmit}
+      noValidate
+      aria-label={isEditMode ? 'Edit sleep record' : 'Add sleep record'}
+      className="space-y-4"
+    >
+      {/* Edit mode indicator banner */}
+      {isEditMode && mode.type === 'edit' && (
+        <div className="flex items-center justify-between rounded-lg border border-indigo-500/20 bg-indigo-500/10 px-3 py-2 text-xs text-indigo-300">
+          <span>
+            Editing record for <span className="font-mono font-semibold">{mode.record.date}</span>
+          </span>
+          <button
+            type="button"
+            onClick={handleCancel}
+            className="ml-2 rounded p-0.5 hover:bg-indigo-500/20 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            aria-label="Cancel editing"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        </div>
+      )}
+
       {/* Date */}
       <div>
         <FieldLabel htmlFor="sleep-date" hint="Date you woke up">
@@ -259,26 +401,38 @@ export const SleepForm: React.FC = () => {
         <FieldError id="sleep-notes-error" message={errors.notes?.message} />
       </div>
 
-      {/* Generic server error */}
-      {mutation.isError &&
-        !(mutation.error instanceof ApiError && [400, 409].includes(mutation.error.status)) && (
-          <div
-            role="alert"
-            className="rounded-lg border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-300"
-          >
-            <div className="flex items-center gap-1.5">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span>
-                {mutation.error instanceof Error
-                  ? mutation.error.message
-                  : 'Something went wrong. Please try again.'}
-              </span>
-            </div>
+      {/* 404 error — record no longer exists */}
+      {show404Error && (
+        <div
+          role="alert"
+          className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-300"
+        >
+          <div className="flex items-center gap-1.5">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>This sleep record no longer exists.</span>
           </div>
-        )}
+        </div>
+      )}
+
+      {/* Generic server error */}
+      {showGenericError && !show404Error && (
+        <div
+          role="alert"
+          className="rounded-lg border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-300"
+        >
+          <div className="flex items-center gap-1.5">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>
+              {mutationError instanceof Error
+                ? mutationError.message
+                : 'Something went wrong. Please try again.'}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Success feedback */}
-      {mutation.isSuccess && (
+      {activeMutation.isSuccess && (
         <div
           role="status"
           aria-live="polite"
@@ -286,27 +440,46 @@ export const SleepForm: React.FC = () => {
         >
           <div className="flex items-center gap-1.5">
             <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            <span>Sleep record saved successfully.</span>
+            <span>
+              {isEditMode
+                ? 'Sleep record updated successfully.'
+                : 'Sleep record saved successfully.'}
+            </span>
           </div>
         </div>
       )}
 
-      {/* Submit */}
-      <button
-        id="sleep-form-submit"
-        type="submit"
-        disabled={isSubmitting}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {isSubmitting ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Saving…
-          </>
-        ) : (
-          'Log sleep'
+      {/* Action buttons */}
+      <div className={isEditMode ? 'flex gap-2' : undefined}>
+        {isEditMode && (
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={isSubmitting}
+            className="flex-1 rounded-lg border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:border-slate-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Cancel
+          </button>
         )}
-      </button>
+
+        <button
+          id="sleep-form-submit"
+          type="submit"
+          disabled={isSubmitting}
+          className={`flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-50 ${isEditMode ? 'flex-1' : 'w-full'}`}
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              Saving…
+            </>
+          ) : isEditMode ? (
+            'Save changes'
+          ) : (
+            'Log sleep'
+          )}
+        </button>
+      </div>
     </form>
   );
 };

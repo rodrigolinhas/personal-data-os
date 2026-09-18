@@ -58,6 +58,11 @@ export async function fetchApi<T>(
     throw new ApiError(res.status, rawText);
   }
 
+  // 204 No Content has no body — skip JSON parsing entirely.
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
   const data = await res.json();
 
   if (schema) {

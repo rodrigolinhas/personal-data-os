@@ -10,17 +10,17 @@
 *                           @rodrigolinhas
 
 # Backend (Go)
-api/                        @rodrigolinhas
+/api/                       @rodrigolinhas
 
 # Frontend (React + TypeScript)
-web/                        @rodrigolinhas
+/web/                       @rodrigolinhas
 
 # Infrastructure & CI
-.github/                    @rodrigolinhas
-docker-compose.yml          @rodrigolinhas
+/.github/                   @rodrigolinhas
+/docker-compose.yml         @rodrigolinhas
 
 # Documentation & API contract
-docs/                       @rodrigolinhas
-README.md                   @rodrigolinhas
-CONTRIBUTING.md             @rodrigolinhas
-PROJECT_CONTEXT.md          @rodrigolinhas
+/docs/                      @rodrigolinhas
+/README.md                  @rodrigolinhas
+/CONTRIBUTING.md            @rodrigolinhas
+/PROJECT_CONTEXT.md         @rodrigolinhas
