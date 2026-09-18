@@ -38,7 +38,10 @@ export const CreateSleepInputSchema = z.object({
 // ---------------------------------------------------------------------------
 
 export type SleepRecord = z.infer<typeof SleepRecordSchema>;
+// UpdateSleepInput uses the same editable fields as CreateSleepInput —
+// a single validation schema covers both operations.
 export type CreateSleepInput = z.infer<typeof CreateSleepInputSchema>;
+export type UpdateSleepInput = CreateSleepInput;
 
 export interface ListSleepParams {
   limit: number;
@@ -75,6 +78,31 @@ export async function createSleep(input: CreateSleepInput): Promise<SleepRecord>
   });
 }
 
+export async function updateSleep(id: number, input: UpdateSleepInput): Promise<SleepRecord> {
+  // Explicitly build the payload — duration_minutes is NEVER sent.
+  const payload: Record<string, unknown> = {
+    date: input.date,
+    bedtime: input.bedtime,
+    wake_time: input.wake_time,
+    quality: input.quality,
+  };
+  if (input.notes && input.notes.trim() !== '') {
+    payload.notes = input.notes.trim();
+  }
+
+  return fetchApi<SleepRecord>(`/api/v1/sleep/${id}`, SleepRecordSchema, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteSleep(id: number): Promise<void> {
+  // DELETE returns 204 No Content — fetchApi handles the empty body.
+  await fetchApi<void>(`/api/v1/sleep/${id}`, undefined, {
+    method: 'DELETE',
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Query hooks
 // ---------------------------------------------------------------------------
@@ -95,6 +123,26 @@ export function useCreateSleepMutation() {
     mutationFn: createSleep,
     onSuccess: () => {
       // Invalidate all sleep list queries so history refreshes automatically.
+      void queryClient.invalidateQueries({ queryKey: [SLEEP_QUERY_KEY] });
+    },
+  });
+}
+
+export function useUpdateSleepMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: number; input: UpdateSleepInput }) => updateSleep(id, input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [SLEEP_QUERY_KEY] });
+    },
+  });
+}
+
+export function useDeleteSleepMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => deleteSleep(id),
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [SLEEP_QUERY_KEY] });
     },
   });
