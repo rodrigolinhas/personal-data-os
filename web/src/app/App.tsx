@@ -1,13 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useHealthQuery } from '../api/health';
 import { Activity, CheckCircle2, AlertCircle, Moon } from 'lucide-react';
-import { SleepForm } from '../features/sleep/SleepForm';
+import { SleepForm, SleepFormMode } from '../features/sleep/SleepForm';
 import { SleepHistory } from '../features/sleep/SleepHistory';
+import { SleepRecord } from '../api/sleep';
 
 export const App: React.FC = () => {
   const { data: health, isLoading: healthLoading, isError: healthError } = useHealthQuery();
 
   const isOnline = health?.status === 'ok';
+
+  // Edit state lives here — it bridges SleepHistory (selects a record)
+  // with SleepForm (pre-fills and submits the update).
+  const [editingRecord, setEditingRecord] = useState<SleepRecord | null>(null);
+
+  const sleepFormMode: SleepFormMode = editingRecord
+    ? { type: 'edit', record: editingRecord }
+    : { type: 'create' };
+
+  const handleEditCancel = () => setEditingRecord(null);
+  const handleEditSuccess = () => setEditingRecord(null);
 
   return (
     <div className="min-h-screen bg-[#090d16] text-slate-100 selection:bg-indigo-500 selection:text-white">
@@ -84,9 +96,13 @@ export const App: React.FC = () => {
           <aside>
             <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-xl backdrop-blur-sm">
               <h3 className="mb-5 flex items-center gap-2 text-sm font-semibold text-slate-200">
-                Add Sleep Record
+                {editingRecord ? 'Edit Sleep Record' : 'Add Sleep Record'}
               </h3>
-              <SleepForm />
+              <SleepForm
+                mode={sleepFormMode}
+                onEditCancel={handleEditCancel}
+                onEditSuccess={handleEditSuccess}
+              />
             </div>
           </aside>
 
@@ -99,7 +115,7 @@ export const App: React.FC = () => {
               >
                 Sleep History
               </h3>
-              <SleepHistory />
+              <SleepHistory editingId={editingRecord?.id ?? null} onEdit={setEditingRecord} />
             </div>
           </section>
         </div>
