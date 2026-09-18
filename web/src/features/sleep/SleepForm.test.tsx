@@ -19,17 +19,37 @@ function makeQueryClient() {
   });
 }
 
-function renderForm() {
+const defaultCreateMock = () =>
+  ({
+    mutate: vi.fn(),
+    isPending: false,
+    isSuccess: false,
+    isError: false,
+    error: null,
+    reset: vi.fn(),
+  }) as unknown as ReturnType<typeof sleepApi.useCreateSleepMutation>;
+
+const defaultUpdateMock = () =>
+  ({
+    mutate: vi.fn(),
+    isPending: false,
+    isSuccess: false,
+    isError: false,
+    error: null,
+    reset: vi.fn(),
+  }) as unknown as ReturnType<typeof sleepApi.useUpdateSleepMutation>;
+
+function renderForm(props?: Partial<React.ComponentProps<typeof SleepForm>>) {
   const queryClient = makeQueryClient();
   const utils = render(
     <QueryClientProvider client={queryClient}>
-      <SleepForm />
+      <SleepForm {...props} />
     </QueryClientProvider>
   );
   return { ...utils, queryClient };
 }
 
-const validRecord = {
+const validRecord: sleepApi.SleepRecord = {
   id: 1,
   date: '2026-08-24',
   bedtime: '23:30',
@@ -42,10 +62,10 @@ const validRecord = {
 };
 
 // ---------------------------------------------------------------------------
-// Rendering
+// Rendering — create mode (defaults)
 // ---------------------------------------------------------------------------
 
-describe('SleepForm — rendering', () => {
+describe('SleepForm — rendering (create mode)', () => {
   it('renders all required form controls', () => {
     renderForm();
     expect(screen.getByLabelText(/date/i)).toBeInTheDocument();
@@ -60,10 +80,66 @@ describe('SleepForm — rendering', () => {
     renderForm();
     expect(screen.getByRole('button', { name: /log sleep/i })).not.toBeDisabled();
   });
+
+  it('does not show a Cancel button in create mode', () => {
+    renderForm();
+    expect(screen.queryByRole('button', { name: /cancel/i })).not.toBeInTheDocument();
+  });
 });
 
 // ---------------------------------------------------------------------------
-// Client-side validation
+// Rendering — edit mode
+// ---------------------------------------------------------------------------
+
+describe('SleepForm — rendering (edit mode)', () => {
+  it('shows "Save changes" submit button and Cancel button in edit mode', () => {
+    vi.spyOn(sleepApi, 'useUpdateSleepMutation').mockReturnValue(defaultUpdateMock());
+    vi.spyOn(sleepApi, 'useCreateSleepMutation').mockReturnValue(defaultCreateMock());
+
+    renderForm({ mode: { type: 'edit', record: validRecord } });
+
+    expect(screen.getByRole('button', { name: /save changes/i })).toBeInTheDocument();
+    // The form has a standalone Cancel button (not the banner X icon)
+    expect(screen.getByRole('button', { name: /^cancel$/i })).toBeInTheDocument();
+    // "Log sleep" button should not appear in edit mode
+    expect(screen.queryByRole('button', { name: /log sleep/i })).not.toBeInTheDocument();
+  });
+
+  it('pre-fills all editable fields from the record', () => {
+    vi.spyOn(sleepApi, 'useUpdateSleepMutation').mockReturnValue(defaultUpdateMock());
+    vi.spyOn(sleepApi, 'useCreateSleepMutation').mockReturnValue(defaultCreateMock());
+
+    renderForm({ mode: { type: 'edit', record: validRecord } });
+
+    expect(screen.getByLabelText(/date/i)).toHaveValue('2026-08-24');
+    expect(screen.getByLabelText(/bedtime/i)).toHaveValue('23:30');
+    expect(screen.getByLabelText(/wake time/i)).toHaveValue('07:00');
+    expect(screen.getByLabelText(/sleep quality/i)).toHaveValue(8);
+    expect(screen.getByLabelText(/notes/i)).toHaveValue('Synthetic sleep record');
+  });
+
+  it('shows the editing indicator banner with the record date', () => {
+    vi.spyOn(sleepApi, 'useUpdateSleepMutation').mockReturnValue(defaultUpdateMock());
+    vi.spyOn(sleepApi, 'useCreateSleepMutation').mockReturnValue(defaultCreateMock());
+
+    renderForm({ mode: { type: 'edit', record: validRecord } });
+
+    expect(screen.getByText(/editing record for/i)).toBeInTheDocument();
+    expect(screen.getByText('2026-08-24')).toBeInTheDocument();
+  });
+
+  it('uses the edit form aria-label in edit mode', () => {
+    vi.spyOn(sleepApi, 'useUpdateSleepMutation').mockReturnValue(defaultUpdateMock());
+    vi.spyOn(sleepApi, 'useCreateSleepMutation').mockReturnValue(defaultCreateMock());
+
+    renderForm({ mode: { type: 'edit', record: validRecord } });
+
+    expect(screen.getByRole('form', { name: /edit sleep record/i })).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Client-side validation (shared by both modes)
 // ---------------------------------------------------------------------------
 
 describe('SleepForm — validation', () => {
@@ -134,13 +210,32 @@ describe('SleepForm — validation', () => {
       expect(screen.getByText(/wake time must differ from bedtime/i)).toBeInTheDocument();
     });
   });
+
+  it('edit mode enforces the same validation rules', async () => {
+    vi.spyOn(sleepApi, 'useUpdateSleepMutation').mockReturnValue(defaultUpdateMock());
+    vi.spyOn(sleepApi, 'useCreateSleepMutation').mockReturnValue(defaultCreateMock());
+
+    const user = userEvent.setup();
+    renderForm({ mode: { type: 'edit', record: validRecord } });
+
+    // Clear quality to trigger validation
+    const qualityInput = screen.getByLabelText(/sleep quality/i);
+    await user.clear(qualityInput);
+    await user.type(qualityInput, '0');
+
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/quality must be at least 1/i)).toBeInTheDocument();
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
-// Submission
+// Submission — create mode
 // ---------------------------------------------------------------------------
 
-describe('SleepForm — submission', () => {
+describe('SleepForm — submission (create mode)', () => {
   it('calls createSleep with correct payload (no duration_minutes)', async () => {
     const user = userEvent.setup();
     const mockMutate = vi.spyOn(sleepApi, 'useCreateSleepMutation').mockReturnValue({
@@ -246,5 +341,170 @@ describe('SleepForm — submission', () => {
 
     renderForm();
     expect(screen.getByText(/internal server error/i)).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Submission — edit mode
+// ---------------------------------------------------------------------------
+
+describe('SleepForm — submission (edit mode)', () => {
+  it('calls update mutation with correct id and input (no duration_minutes)', async () => {
+    const mutateFn = vi.fn(
+      (
+        _args: { id: number; input: sleepApi.UpdateSleepInput },
+        options?: { onSuccess?: (data: sleepApi.SleepRecord) => void }
+      ) => {
+        options?.onSuccess?.(validRecord);
+      }
+    );
+    vi.spyOn(sleepApi, 'useUpdateSleepMutation').mockReturnValue({
+      mutate: mutateFn,
+      isPending: false,
+      isSuccess: false,
+      isError: false,
+      error: null,
+      reset: vi.fn(),
+    } as unknown as ReturnType<typeof sleepApi.useUpdateSleepMutation>);
+    vi.spyOn(sleepApi, 'useCreateSleepMutation').mockReturnValue(defaultCreateMock());
+
+    const onEditSuccess = vi.fn();
+    const user = userEvent.setup();
+    renderForm({ mode: { type: 'edit', record: validRecord }, onEditSuccess });
+
+    // Change the quality field
+    const qualityInput = screen.getByLabelText(/sleep quality/i);
+    await user.clear(qualityInput);
+    await user.type(qualityInput, '9');
+
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(mutateFn).toHaveBeenCalledOnce();
+      const callArg = mutateFn.mock.calls[0][0];
+      expect(callArg.id).toBe(1);
+      expect(callArg.input).not.toHaveProperty('duration_minutes');
+      expect(callArg.input.quality).toBe(9);
+      expect(callArg.input.date).toBe('2026-08-24');
+    });
+  });
+
+  it('shows "Sleep record updated successfully" after successful save', () => {
+    vi.spyOn(sleepApi, 'useUpdateSleepMutation').mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      isSuccess: true,
+      isError: false,
+      error: null,
+      reset: vi.fn(),
+    } as unknown as ReturnType<typeof sleepApi.useUpdateSleepMutation>);
+    vi.spyOn(sleepApi, 'useCreateSleepMutation').mockReturnValue(defaultCreateMock());
+
+    renderForm({ mode: { type: 'edit', record: validRecord } });
+    expect(screen.getByText(/sleep record updated successfully/i)).toBeInTheDocument();
+  });
+
+  it('disables Save while update is pending', () => {
+    vi.spyOn(sleepApi, 'useUpdateSleepMutation').mockReturnValue({
+      mutate: vi.fn(),
+      isPending: true,
+      isSuccess: false,
+      isError: false,
+      error: null,
+      reset: vi.fn(),
+    } as unknown as ReturnType<typeof sleepApi.useUpdateSleepMutation>);
+    vi.spyOn(sleepApi, 'useCreateSleepMutation').mockReturnValue(defaultCreateMock());
+
+    renderForm({ mode: { type: 'edit', record: validRecord } });
+    expect(screen.getByRole('button', { name: /saving/i })).toBeDisabled();
+  });
+
+  it('shows duplicate-date conflict feedback on 409 — values remain', async () => {
+    const mutateFn = vi.fn((_args: unknown, options?: { onError?: (err: Error) => void }) => {
+      options?.onError?.(
+        new ApiError(409, 'A sleep record already exists for that date.', 'CONFLICT')
+      );
+    });
+    vi.spyOn(sleepApi, 'useUpdateSleepMutation').mockReturnValue({
+      mutate: mutateFn,
+      isPending: false,
+      isSuccess: false,
+      isError: false,
+      error: null,
+      reset: vi.fn(),
+    } as unknown as ReturnType<typeof sleepApi.useUpdateSleepMutation>);
+    vi.spyOn(sleepApi, 'useCreateSleepMutation').mockReturnValue(defaultCreateMock());
+
+    const user = userEvent.setup();
+    renderForm({ mode: { type: 'edit', record: validRecord } });
+
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/a sleep record already exists for that date/i)).toBeInTheDocument();
+    });
+    // Form values must remain intact
+    expect(screen.getByLabelText(/date/i)).toHaveValue('2026-08-24');
+  });
+
+  it('shows 404 error banner when record no longer exists', () => {
+    vi.spyOn(sleepApi, 'useUpdateSleepMutation').mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      isSuccess: false,
+      isError: true,
+      error: new ApiError(404, 'Not found'),
+      reset: vi.fn(),
+    } as unknown as ReturnType<typeof sleepApi.useUpdateSleepMutation>);
+    vi.spyOn(sleepApi, 'useCreateSleepMutation').mockReturnValue(defaultCreateMock());
+
+    renderForm({ mode: { type: 'edit', record: validRecord } });
+    expect(screen.getByText(/this sleep record no longer exists/i)).toBeInTheDocument();
+  });
+
+  it('shows generic error for 500/network — values retained', () => {
+    vi.spyOn(sleepApi, 'useUpdateSleepMutation').mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      isSuccess: false,
+      isError: true,
+      error: new ApiError(500, 'Internal server error'),
+      reset: vi.fn(),
+    } as unknown as ReturnType<typeof sleepApi.useUpdateSleepMutation>);
+    vi.spyOn(sleepApi, 'useCreateSleepMutation').mockReturnValue(defaultCreateMock());
+
+    renderForm({ mode: { type: 'edit', record: validRecord } });
+    expect(screen.getByText(/internal server error/i)).toBeInTheDocument();
+    // Form values must remain
+    expect(screen.getByLabelText(/date/i)).toHaveValue('2026-08-24');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cancel — edit mode
+// ---------------------------------------------------------------------------
+
+describe('SleepForm — cancel (edit mode)', () => {
+  it('calls onEditCancel without sending any request when Cancel is clicked', async () => {
+    const mutateFn = vi.fn();
+    vi.spyOn(sleepApi, 'useUpdateSleepMutation').mockReturnValue({
+      mutate: mutateFn,
+      isPending: false,
+      isSuccess: false,
+      isError: false,
+      error: null,
+      reset: vi.fn(),
+    } as unknown as ReturnType<typeof sleepApi.useUpdateSleepMutation>);
+    vi.spyOn(sleepApi, 'useCreateSleepMutation').mockReturnValue(defaultCreateMock());
+
+    const onEditCancel = vi.fn();
+    const user = userEvent.setup();
+    renderForm({ mode: { type: 'edit', record: validRecord }, onEditCancel });
+
+    // Target the standalone Cancel button (not the banner X icon)
+    await user.click(screen.getByRole('button', { name: /^cancel$/i }));
+
+    expect(mutateFn).not.toHaveBeenCalled();
+    expect(onEditCancel).toHaveBeenCalledOnce();
   });
 });
