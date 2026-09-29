@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"testing"
@@ -683,5 +684,356 @@ func TestDeleteSleepLog_NotFound(t *testing.T) {
 	}
 	if rowsAffected != 0 {
 		t.Errorf("expected 0 rows affected for non-existent ID, got %d", rowsAffected)
+	}
+}
+
+// --- GetSleepStats integration tests ---
+
+// getCurrentDate fetches CURRENT_DATE from PostgreSQL to keep tests deterministic
+// with the same date source used by the aggregate query.
+func getCurrentDate(t *testing.T, pool *pgxpool.Pool) time.Time {
+	t.Helper()
+	var d time.Time
+	err := pool.QueryRow(context.Background(), "SELECT CURRENT_DATE").Scan(&d)
+	if err != nil {
+		t.Fatalf("failed to get CURRENT_DATE: %v", err)
+	}
+	return d
+}
+
+// insertSyntheticSleep inserts a sleep record with a given date offset from baseDate.
+// It uses deterministic times (23:00 bedtime, 07:00 wake) and configurable duration/quality.
+func insertSyntheticSleep(t *testing.T, q *sqlcdb.Queries, baseDate time.Time, dayOffset int, duration int32, quality int16) {
+	t.Helper()
+	d := baseDate.AddDate(0, 0, dayOffset)
+	_, err := q.CreateSleepLog(context.Background(), sqlcdb.CreateSleepLogParams{
+		Date:            pgtype.Date{Time: d, Valid: true},
+		Bedtime:         syntheticTime(23, 0),
+		WakeTime:        syntheticTime(7, 0),
+		DurationMinutes: duration,
+		Quality:         quality,
+	})
+	if err != nil {
+		t.Fatalf("failed to insert synthetic sleep for %v: %v", d, err)
+	}
+}
+
+func TestGetSleepStats_NoRecords(t *testing.T) {
+	pool := connectTestDB(t)
+	defer pool.Close()
+	cleanSleepLogs(t, pool)
+
+	q := sqlcdb.New(pool)
+	row, err := q.GetSleepStats(context.Background())
+	if err != nil {
+		t.Fatalf("GetSleepStats failed: %v", err)
+	}
+
+	if row.Count7d != 0 {
+		t.Errorf("expected 7d count 0, got %d", row.Count7d)
+	}
+	if row.Count30d != 0 {
+		t.Errorf("expected 30d count 0, got %d", row.Count30d)
+	}
+	if row.AvgDuration7d.Valid {
+		t.Errorf("expected null 7d avg duration, got %f", row.AvgDuration7d.Float64)
+	}
+	if row.AvgQuality7d.Valid {
+		t.Errorf("expected null 7d avg quality, got %f", row.AvgQuality7d.Float64)
+	}
+	if row.AvgDuration30d.Valid {
+		t.Errorf("expected null 30d avg duration, got %f", row.AvgDuration30d.Float64)
+	}
+	if row.AvgQuality30d.Valid {
+		t.Errorf("expected null 30d avg quality, got %f", row.AvgQuality30d.Float64)
+	}
+}
+
+func TestGetSleepStats_OneRecordToday(t *testing.T) {
+	pool := connectTestDB(t)
+	defer pool.Close()
+	cleanSleepLogs(t, pool)
+
+	today := getCurrentDate(t, pool)
+	q := sqlcdb.New(pool)
+	insertSyntheticSleep(t, q, today, 0, 480, 8)
+
+	row, err := q.GetSleepStats(context.Background())
+	if err != nil {
+		t.Fatalf("GetSleepStats failed: %v", err)
+	}
+
+	// Should be in both windows
+	if row.Count7d != 1 {
+		t.Errorf("expected 7d count 1, got %d", row.Count7d)
+	}
+	if row.Count30d != 1 {
+		t.Errorf("expected 30d count 1, got %d", row.Count30d)
+	}
+	if !row.AvgDuration7d.Valid || row.AvgDuration7d.Float64 != 480 {
+		t.Errorf("expected 7d avg duration 480, got %v", row.AvgDuration7d)
+	}
+	if !row.AvgQuality7d.Valid || row.AvgQuality7d.Float64 != 8 {
+		t.Errorf("expected 7d avg quality 8, got %v", row.AvgQuality7d)
+	}
+}
+
+func TestGetSleepStats_MissingDays(t *testing.T) {
+	pool := connectTestDB(t)
+	defer pool.Close()
+	cleanSleepLogs(t, pool)
+
+	today := getCurrentDate(t, pool)
+	q := sqlcdb.New(pool)
+
+	// Insert records only for today, today-2, today-4, today-6 (4 of 7 days)
+	insertSyntheticSleep(t, q, today, 0, 400, 6)
+	insertSyntheticSleep(t, q, today, -2, 500, 8)
+	insertSyntheticSleep(t, q, today, -4, 450, 7)
+	insertSyntheticSleep(t, q, today, -6, 350, 9)
+
+	row, err := q.GetSleepStats(context.Background())
+	if err != nil {
+		t.Fatalf("GetSleepStats failed: %v", err)
+	}
+
+	// 4 records, not 7
+	if row.Count7d != 4 {
+		t.Errorf("expected 7d count 4, got %d", row.Count7d)
+	}
+	// Average of 400+500+450+350 = 1700/4 = 425.0
+	if !row.AvgDuration7d.Valid || math.Abs(row.AvgDuration7d.Float64-425.0) > 0.001 {
+		t.Errorf("expected 7d avg duration 425.0, got %v", row.AvgDuration7d)
+	}
+	// Average quality of 6+8+7+9 = 30/4 = 7.5
+	if !row.AvgQuality7d.Valid || math.Abs(row.AvgQuality7d.Float64-7.5) > 0.001 {
+		t.Errorf("expected 7d avg quality 7.5, got %v", row.AvgQuality7d)
+	}
+}
+
+func TestGetSleepStats_7DayLowerBoundInclusive(t *testing.T) {
+	pool := connectTestDB(t)
+	defer pool.Close()
+	cleanSleepLogs(t, pool)
+
+	today := getCurrentDate(t, pool)
+	q := sqlcdb.New(pool)
+
+	// Record exactly 6 days ago should be included in 7-day window
+	insertSyntheticSleep(t, q, today, -6, 420, 7)
+
+	row, err := q.GetSleepStats(context.Background())
+	if err != nil {
+		t.Fatalf("GetSleepStats failed: %v", err)
+	}
+
+	if row.Count7d != 1 {
+		t.Errorf("expected 7d count 1 (today-6 included), got %d", row.Count7d)
+	}
+}
+
+func TestGetSleepStats_Outside7DayBut30Day(t *testing.T) {
+	pool := connectTestDB(t)
+	defer pool.Close()
+	cleanSleepLogs(t, pool)
+
+	today := getCurrentDate(t, pool)
+	q := sqlcdb.New(pool)
+
+	// Record exactly 7 days ago should be excluded from 7-day but included in 30-day
+	insertSyntheticSleep(t, q, today, -7, 480, 8)
+
+	row, err := q.GetSleepStats(context.Background())
+	if err != nil {
+		t.Fatalf("GetSleepStats failed: %v", err)
+	}
+
+	if row.Count7d != 0 {
+		t.Errorf("expected 7d count 0 (today-7 excluded), got %d", row.Count7d)
+	}
+	if row.AvgDuration7d.Valid {
+		t.Errorf("expected null 7d avg duration, got %f", row.AvgDuration7d.Float64)
+	}
+	if row.Count30d != 1 {
+		t.Errorf("expected 30d count 1 (today-7 included), got %d", row.Count30d)
+	}
+	if !row.AvgDuration30d.Valid || row.AvgDuration30d.Float64 != 480 {
+		t.Errorf("expected 30d avg duration 480, got %v", row.AvgDuration30d)
+	}
+}
+
+func TestGetSleepStats_30DayLowerBoundInclusive(t *testing.T) {
+	pool := connectTestDB(t)
+	defer pool.Close()
+	cleanSleepLogs(t, pool)
+
+	today := getCurrentDate(t, pool)
+	q := sqlcdb.New(pool)
+
+	// Record exactly 29 days ago should be included in 30-day window
+	insertSyntheticSleep(t, q, today, -29, 450, 9)
+
+	row, err := q.GetSleepStats(context.Background())
+	if err != nil {
+		t.Fatalf("GetSleepStats failed: %v", err)
+	}
+
+	if row.Count30d != 1 {
+		t.Errorf("expected 30d count 1 (today-29 included), got %d", row.Count30d)
+	}
+}
+
+func TestGetSleepStats_Outside30DayBoundary(t *testing.T) {
+	pool := connectTestDB(t)
+	defer pool.Close()
+	cleanSleepLogs(t, pool)
+
+	today := getCurrentDate(t, pool)
+	q := sqlcdb.New(pool)
+
+	// Record exactly 30 days ago should be excluded from 30-day window
+	insertSyntheticSleep(t, q, today, -30, 480, 8)
+
+	row, err := q.GetSleepStats(context.Background())
+	if err != nil {
+		t.Fatalf("GetSleepStats failed: %v", err)
+	}
+
+	if row.Count30d != 0 {
+		t.Errorf("expected 30d count 0 (today-30 excluded), got %d", row.Count30d)
+	}
+	if row.AvgDuration30d.Valid {
+		t.Errorf("expected null 30d avg duration, got %f", row.AvgDuration30d.Float64)
+	}
+}
+
+func TestGetSleepStats_FutureRecordExcluded(t *testing.T) {
+	pool := connectTestDB(t)
+	defer pool.Close()
+	cleanSleepLogs(t, pool)
+
+	today := getCurrentDate(t, pool)
+	q := sqlcdb.New(pool)
+
+	// Future record (tomorrow)
+	insertSyntheticSleep(t, q, today, +1, 480, 10)
+
+	row, err := q.GetSleepStats(context.Background())
+	if err != nil {
+		t.Fatalf("GetSleepStats failed: %v", err)
+	}
+
+	if row.Count7d != 0 {
+		t.Errorf("expected 7d count 0 (future excluded), got %d", row.Count7d)
+	}
+	if row.Count30d != 0 {
+		t.Errorf("expected 30d count 0 (future excluded), got %d", row.Count30d)
+	}
+}
+
+func TestGetSleepStats_FractionalAverages(t *testing.T) {
+	pool := connectTestDB(t)
+	defer pool.Close()
+	cleanSleepLogs(t, pool)
+
+	today := getCurrentDate(t, pool)
+	q := sqlcdb.New(pool)
+
+	// Insert 3 records with varying duration and quality to produce fractional averages
+	insertSyntheticSleep(t, q, today, 0, 400, 6)  // duration 400, quality 6
+	insertSyntheticSleep(t, q, today, -1, 500, 8) // duration 500, quality 8
+	insertSyntheticSleep(t, q, today, -2, 450, 7) // duration 450, quality 7
+
+	row, err := q.GetSleepStats(context.Background())
+	if err != nil {
+		t.Fatalf("GetSleepStats failed: %v", err)
+	}
+
+	if row.Count7d != 3 {
+		t.Errorf("expected 7d count 3, got %d", row.Count7d)
+	}
+
+	// AVG(400, 500, 450) = 1350/3 = 450.0
+	expectedAvgDuration := 450.0
+	if !row.AvgDuration7d.Valid || math.Abs(row.AvgDuration7d.Float64-expectedAvgDuration) > 0.001 {
+		t.Errorf("expected 7d avg duration %f, got %v", expectedAvgDuration, row.AvgDuration7d)
+	}
+
+	// AVG(6, 8, 7) = 21/3 = 7.0
+	expectedAvgQuality := 7.0
+	if !row.AvgQuality7d.Valid || math.Abs(row.AvgQuality7d.Float64-expectedAvgQuality) > 0.001 {
+		t.Errorf("expected 7d avg quality %f, got %v", expectedAvgQuality, row.AvgQuality7d)
+	}
+
+	// Now test truly fractional with 2 records: AVG(6, 7) = 6.5
+	cleanSleepLogs(t, pool)
+	insertSyntheticSleep(t, q, today, 0, 401, 6)
+	insertSyntheticSleep(t, q, today, -1, 502, 7)
+
+	row, err = q.GetSleepStats(context.Background())
+	if err != nil {
+		t.Fatalf("GetSleepStats failed: %v", err)
+	}
+
+	// AVG(401, 502) = 903/2 = 451.5
+	if !row.AvgDuration7d.Valid || math.Abs(row.AvgDuration7d.Float64-451.5) > 0.001 {
+		t.Errorf("expected fractional avg duration 451.5, got %v", row.AvgDuration7d)
+	}
+
+	// AVG(6, 7) = 13/2 = 6.5
+	if !row.AvgQuality7d.Valid || math.Abs(row.AvgQuality7d.Float64-6.5) > 0.001 {
+		t.Errorf("expected fractional avg quality 6.5, got %v", row.AvgQuality7d)
+	}
+}
+
+func TestGetSleepStats_BothWindowsCombined(t *testing.T) {
+	pool := connectTestDB(t)
+	defer pool.Close()
+	cleanSleepLogs(t, pool)
+
+	today := getCurrentDate(t, pool)
+	q := sqlcdb.New(pool)
+
+	// 7-day records: today, today-3 (2 records)
+	insertSyntheticSleep(t, q, today, 0, 480, 8)
+	insertSyntheticSleep(t, q, today, -3, 420, 6)
+
+	// 30-day only records: today-10, today-20 (2 more, 4 total in 30d)
+	insertSyntheticSleep(t, q, today, -10, 500, 9)
+	insertSyntheticSleep(t, q, today, -20, 360, 5)
+
+	// Out of range: today-30 (excluded) and tomorrow (excluded)
+	insertSyntheticSleep(t, q, today, -30, 999, 10)
+	insertSyntheticSleep(t, q, today, +1, 999, 10)
+
+	row, err := q.GetSleepStats(context.Background())
+	if err != nil {
+		t.Fatalf("GetSleepStats failed: %v", err)
+	}
+
+	// 7-day: 2 records
+	if row.Count7d != 2 {
+		t.Errorf("expected 7d count 2, got %d", row.Count7d)
+	}
+	// AVG(480, 420) = 450.0
+	if !row.AvgDuration7d.Valid || math.Abs(row.AvgDuration7d.Float64-450.0) > 0.001 {
+		t.Errorf("expected 7d avg duration 450.0, got %v", row.AvgDuration7d)
+	}
+	// AVG(8, 6) = 7.0
+	if !row.AvgQuality7d.Valid || math.Abs(row.AvgQuality7d.Float64-7.0) > 0.001 {
+		t.Errorf("expected 7d avg quality 7.0, got %v", row.AvgQuality7d)
+	}
+
+	// 30-day: 4 records (the 2 in 7d + 2 older ones)
+	if row.Count30d != 4 {
+		t.Errorf("expected 30d count 4, got %d", row.Count30d)
+	}
+	// AVG(480, 420, 500, 360) = 1760/4 = 440.0
+	if !row.AvgDuration30d.Valid || math.Abs(row.AvgDuration30d.Float64-440.0) > 0.001 {
+		t.Errorf("expected 30d avg duration 440.0, got %v", row.AvgDuration30d)
+	}
+	// AVG(8, 6, 9, 5) = 28/4 = 7.0
+	if !row.AvgQuality30d.Valid || math.Abs(row.AvgQuality30d.Float64-7.0) > 0.001 {
+		t.Errorf("expected 30d avg quality 7.0, got %v", row.AvgQuality30d)
 	}
 }
