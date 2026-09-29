@@ -197,6 +197,59 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/v1/sleep/stats:
+    get:
+      summary: Get Sleep Statistics
+      description: >
+        Returns aggregated sleep statistics for two calendar-date windows:
+        the last 7 days (today and previous 6 days) and the last 30 days
+        (today and previous 29 days). Both boundaries are inclusive.
+
+        Missing days are ignored — averages use only existing records as the
+        denominator, not the window size. Future-dated records are excluded.
+
+        When no records exist within a window, averages are returned as
+        `null` and `record_count` is `0`.
+      operationId: getSleepStats
+      responses:
+        '200':
+          description: >
+            Sleep statistics computed successfully.
+            Always returns both windows, even when empty.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SleepStatsResponse'
+              examples:
+                withData:
+                  summary: Statistics with data in both windows
+                  value:
+                    last_7_days:
+                      average_duration_minutes: 450.5
+                      average_quality: 8.2
+                      record_count: 6
+                    last_30_days:
+                      average_duration_minutes: 438.75
+                      average_quality: 7.9
+                      record_count: 22
+                noData:
+                  summary: No sleep records in either window
+                  value:
+                    last_7_days:
+                      average_duration_minutes: null
+                      average_quality: null
+                      record_count: 0
+                    last_30_days:
+                      average_duration_minutes: null
+                      average_quality: null
+                      record_count: 0
+        '500':
+          description: Internal server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 
 components:
   schemas:
@@ -288,6 +341,44 @@ components:
           type: string
           format: date-time
           example: '2026-09-11T12:00:00Z'
+
+    SleepStatsSummary:
+      type: object
+      description: Aggregated sleep metrics for a specific calendar window.
+      required:
+        - average_duration_minutes
+        - average_quality
+        - record_count
+      properties:
+        average_duration_minutes:
+          type: number
+          format: double
+          nullable: true
+          example: 450.5
+          description: Average sleep duration in minutes, or null if no records exist in this window.
+        average_quality:
+          type: number
+          format: double
+          nullable: true
+          example: 8.2
+          description: Average subjective sleep quality score (1-10), or null if no records exist in this window.
+        record_count:
+          type: integer
+          format: int64
+          example: 6
+          description: Number of sleep records found within this window.
+
+    SleepStatsResponse:
+      type: object
+      description: Sleep statistics for recent calendar-date windows.
+      required:
+        - last_7_days
+        - last_30_days
+      properties:
+        last_7_days:
+          $ref: '#/components/schemas/SleepStatsSummary'
+        last_30_days:
+          $ref: '#/components/schemas/SleepStatsSummary'
 
     ErrorDetail:
       type: object
