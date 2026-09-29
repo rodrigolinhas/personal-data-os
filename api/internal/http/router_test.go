@@ -25,6 +25,9 @@ func TestRouterEndpoints(t *testing.T) {
 		deleteFn: func(ctx context.Context, id int64) error {
 			return nil
 		},
+		statsFn: func(ctx context.Context) (sleep.Stats, error) {
+			return sleep.Stats{}, nil
+		},
 	}
 	router := NewRouter(mockSvc)
 
@@ -78,6 +81,12 @@ func TestRouterEndpoints(t *testing.T) {
 			method:         http.MethodDelete,
 			path:           "/api/v1/sleep/1",
 			expectedStatus: http.StatusNoContent,
+		},
+		{
+			name:           "Sleep Route GET stats",
+			method:         http.MethodGet,
+			path:           "/api/v1/sleep/stats",
+			expectedStatus: http.StatusOK,
 		},
 	}
 

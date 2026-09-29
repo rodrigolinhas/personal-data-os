@@ -29,6 +29,7 @@ type SleepService interface {
 	List(ctx context.Context, limit, offset int32) ([]sqlc.SleepLog, error)
 	Update(ctx context.Context, id int64, in sleep.UpdateInput) (sqlc.SleepLog, error)
 	Delete(ctx context.Context, id int64) error
+	Stats(ctx context.Context) (sleep.Stats, error)
 }
 
 // SleepHandler handles HTTP transport for the Sleep Tracking domain.
@@ -355,4 +356,46 @@ func (h *SleepHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// SleepStatsSummaryResponse defines the JSON structure for a single statistics window.
+type SleepStatsSummaryResponse struct {
+	AverageDurationMinutes *float64 `json:"average_duration_minutes"`
+	AverageQuality         *float64 `json:"average_quality"`
+	RecordCount            int64    `json:"record_count"`
+}
+
+// SleepStatsResponse defines the public API JSON structure for sleep statistics.
+type SleepStatsResponse struct {
+	Last7Days  SleepStatsSummaryResponse `json:"last_7_days"`
+	Last30Days SleepStatsSummaryResponse `json:"last_30_days"`
+}
+
+// Stats handles GET /api/v1/sleep/stats.
+func (h *SleepHandler) Stats(w http.ResponseWriter, r *http.Request) {
+	if h.service == nil {
+		slog.Error("Sleep service is nil on Stats request")
+		RespondError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "database service unavailable", nil)
+		return
+	}
+
+	stats, err := h.service.Stats(r.Context())
+	if err != nil {
+		slog.Error("Failed to retrieve sleep statistics", "error", err)
+		RespondError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error", nil)
+		return
+	}
+
+	RespondJSON(w, http.StatusOK, SleepStatsResponse{
+		Last7Days: SleepStatsSummaryResponse{
+			AverageDurationMinutes: stats.Last7Days.AverageDurationMinutes,
+			AverageQuality:         stats.Last7Days.AverageQuality,
+			RecordCount:            stats.Last7Days.RecordCount,
+		},
+		Last30Days: SleepStatsSummaryResponse{
+			AverageDurationMinutes: stats.Last30Days.AverageDurationMinutes,
+			AverageQuality:         stats.Last30Days.AverageQuality,
+			RecordCount:            stats.Last30Days.RecordCount,
+		},
+	})
 }
