@@ -19,6 +19,17 @@ var ErrDuplicateDate = errors.New("a sleep record already exists for this date")
 // ErrNotFound is returned when attempting to update or delete a non-existent sleep record.
 var ErrNotFound = errors.New("sleep record not found")
 
+// Store defines the data-access methods required by the Sleep Service.
+// This is a consumer-owned interface containing only the methods the service
+// actually needs, decoupling it from the full generated sqlc.Querier.
+type Store interface {
+	CreateSleepLog(ctx context.Context, arg sqlc.CreateSleepLogParams) (sqlc.SleepLog, error)
+	ListSleepLogs(ctx context.Context, arg sqlc.ListSleepLogsParams) ([]sqlc.SleepLog, error)
+	UpdateSleepLog(ctx context.Context, arg sqlc.UpdateSleepLogParams) (sqlc.SleepLog, error)
+	DeleteSleepLog(ctx context.Context, id int64) (int64, error)
+	GetSleepStats(ctx context.Context) (sqlc.GetSleepStatsRow, error)
+}
+
 // CreateInput defines the domain input for creating a sleep record.
 type CreateInput struct {
 	Date     string
@@ -37,21 +48,34 @@ type UpdateInput struct {
 	Notes    *string
 }
 
+// StatsSummary holds aggregate statistics for a calendar-date window.
+type StatsSummary struct {
+	AverageDurationMinutes *float64
+	AverageQuality         *float64
+	RecordCount            int64
+}
+
+// Stats holds sleep statistics for both the 7-day and 30-day windows.
+type Stats struct {
+	Last7Days  StatsSummary
+	Last30Days StatsSummary
+}
+
 // Service provides domain business operations for sleep tracking.
 type Service struct {
-	querier sqlc.Querier
+	store Store
 }
 
 // NewService constructs a new Sleep Service.
-func NewService(querier sqlc.Querier) *Service {
-	return &Service{querier: querier}
+func NewService(store Store) *Service {
+	return &Service{store: store}
 }
 
 // Create validates and calculates server-controlled duration, persisting the sleep record via sqlc.
 // It maps unique constraint violations on date to ErrDuplicateDate.
 func (s *Service) Create(ctx context.Context, in CreateInput) (sqlc.SleepLog, error) {
-	if s.querier == nil {
-		return sqlc.SleepLog{}, errors.New("database querier is not initialized")
+	if s.store == nil {
+		return sqlc.SleepLog{}, errors.New("database store is not initialized")
 	}
 
 	durationMinutes, err := CalculateDuration(in.Bedtime, in.WakeTime)
@@ -91,7 +115,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (sqlc.SleepLog, er
 		Notes:           notesText,
 	}
 
-	log, err := s.querier.CreateSleepLog(ctx, params)
+	log, err := s.store.CreateSleepLog(ctx, params)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "sleep_logs_date_key" {
@@ -105,8 +129,8 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (sqlc.SleepLog, er
 
 // List returns sleep records with limit and offset pagination.
 func (s *Service) List(ctx context.Context, limit, offset int32) ([]sqlc.SleepLog, error) {
-	if s.querier == nil {
-		return nil, errors.New("database querier is not initialized")
+	if s.store == nil {
+		return nil, errors.New("database store is not initialized")
 	}
 
 	params := sqlc.ListSleepLogsParams{
@@ -114,7 +138,7 @@ func (s *Service) List(ctx context.Context, limit, offset int32) ([]sqlc.SleepLo
 		Offset: offset,
 	}
 
-	records, err := s.querier.ListSleepLogs(ctx, params)
+	records, err := s.store.ListSleepLogs(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -129,8 +153,8 @@ func (s *Service) List(ctx context.Context, limit, offset int32) ([]sqlc.SleepLo
 // Update validates and recalculates duration, updating the sleep record via sqlc.
 // It maps pgx.ErrNoRows to ErrNotFound, and unique constraint violations on date to ErrDuplicateDate.
 func (s *Service) Update(ctx context.Context, id int64, in UpdateInput) (sqlc.SleepLog, error) {
-	if s.querier == nil {
-		return sqlc.SleepLog{}, errors.New("database querier is not initialized")
+	if s.store == nil {
+		return sqlc.SleepLog{}, errors.New("database store is not initialized")
 	}
 
 	durationMinutes, err := CalculateDuration(in.Bedtime, in.WakeTime)
@@ -171,7 +195,7 @@ func (s *Service) Update(ctx context.Context, id int64, in UpdateInput) (sqlc.Sl
 		Notes:           notesText,
 	}
 
-	log, err := s.querier.UpdateSleepLog(ctx, params)
+	log, err := s.store.UpdateSleepLog(ctx, params)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return sqlc.SleepLog{}, ErrNotFound
@@ -189,11 +213,11 @@ func (s *Service) Update(ctx context.Context, id int64, in UpdateInput) (sqlc.Sl
 // Delete removes a sleep record by id.
 // It returns ErrNotFound if no row was deleted.
 func (s *Service) Delete(ctx context.Context, id int64) error {
-	if s.querier == nil {
-		return errors.New("database querier is not initialized")
+	if s.store == nil {
+		return errors.New("database store is not initialized")
 	}
 
-	rowsAffected, err := s.querier.DeleteSleepLog(ctx, id)
+	rowsAffected, err := s.store.DeleteSleepLog(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -203,4 +227,40 @@ func (s *Service) Delete(ctx context.Context, id int64) error {
 	}
 
 	return nil
+}
+
+// Stats retrieves aggregated sleep statistics for both the 7-day and 30-day windows.
+// It maps generated pgtype.Float8 nullable values to domain *float64 pointers,
+// preserving null averages when no records exist in a window.
+func (s *Service) Stats(ctx context.Context) (Stats, error) {
+	if s.store == nil {
+		return Stats{}, errors.New("database store is not initialized")
+	}
+
+	row, err := s.store.GetSleepStats(ctx)
+	if err != nil {
+		return Stats{}, err
+	}
+
+	return Stats{
+		Last7Days: StatsSummary{
+			AverageDurationMinutes: float8ToPtr(row.AvgDuration7d),
+			AverageQuality:         float8ToPtr(row.AvgQuality7d),
+			RecordCount:            row.Count7d,
+		},
+		Last30Days: StatsSummary{
+			AverageDurationMinutes: float8ToPtr(row.AvgDuration30d),
+			AverageQuality:         float8ToPtr(row.AvgQuality30d),
+			RecordCount:            row.Count30d,
+		},
+	}, nil
+}
+
+// float8ToPtr converts a pgtype.Float8 to a *float64.
+// Returns nil when the database value is NULL (Valid == false).
+func float8ToPtr(f pgtype.Float8) *float64 {
+	if !f.Valid {
+		return nil
+	}
+	return &f.Float64
 }

@@ -3,10 +3,12 @@ package sleep_test
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"personal-data-os/api/db/sqlc"
 	"personal-data-os/api/internal/sleep"
@@ -17,6 +19,7 @@ type mockQuerier struct {
 	listFn   func(ctx context.Context, arg sqlc.ListSleepLogsParams) ([]sqlc.SleepLog, error)
 	updateFn func(ctx context.Context, arg sqlc.UpdateSleepLogParams) (sqlc.SleepLog, error)
 	deleteFn func(ctx context.Context, id int64) (int64, error)
+	statsFn  func(ctx context.Context) (sqlc.GetSleepStatsRow, error)
 }
 
 func (m *mockQuerier) CreateSleepLog(ctx context.Context, arg sqlc.CreateSleepLogParams) (sqlc.SleepLog, error) {
@@ -45,6 +48,13 @@ func (m *mockQuerier) DeleteSleepLog(ctx context.Context, id int64) (int64, erro
 		return m.deleteFn(ctx, id)
 	}
 	return 0, nil
+}
+
+func (m *mockQuerier) GetSleepStats(ctx context.Context) (sqlc.GetSleepStatsRow, error) {
+	if m.statsFn != nil {
+		return m.statsFn(ctx)
+	}
+	return sqlc.GetSleepStatsRow{}, nil
 }
 
 func TestService_Create_Success(t *testing.T) {
@@ -242,6 +252,11 @@ func TestService_NilQuerier(t *testing.T) {
 	err = svc.Delete(context.Background(), 1)
 	if err == nil {
 		t.Fatal("expected error on nil querier (Delete), got nil")
+	}
+
+	_, err = svc.Stats(context.Background())
+	if err == nil {
+		t.Fatal("expected error on nil querier (Stats), got nil")
 	}
 }
 
@@ -446,6 +461,153 @@ func TestService_Delete_DatabaseError(t *testing.T) {
 
 	svc := sleep.NewService(mock)
 	err := svc.Delete(context.Background(), 1)
+	if !errors.Is(err, dbErr) {
+		t.Fatalf("expected db error, got %v", err)
+	}
+}
+
+// --- Stats service tests ---
+
+func TestService_Stats_Success(t *testing.T) {
+	mock := &mockQuerier{
+		statsFn: func(ctx context.Context) (sqlc.GetSleepStatsRow, error) {
+			return sqlc.GetSleepStatsRow{
+				Count7d:        4,
+				AvgDuration7d:  pgtype.Float8{Float64: 450.5, Valid: true},
+				AvgQuality7d:   pgtype.Float8{Float64: 8.25, Valid: true},
+				Count30d:       22,
+				AvgDuration30d: pgtype.Float8{Float64: 438.75, Valid: true},
+				AvgQuality30d:  pgtype.Float8{Float64: 7.9, Valid: true},
+			}, nil
+		},
+	}
+
+	svc := sleep.NewService(mock)
+	stats, err := svc.Stats(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// 7-day window
+	if stats.Last7Days.RecordCount != 4 {
+		t.Errorf("expected 7d count 4, got %d", stats.Last7Days.RecordCount)
+	}
+	if stats.Last7Days.AverageDurationMinutes == nil {
+		t.Fatal("expected non-nil 7d average duration")
+	}
+	if math.Abs(*stats.Last7Days.AverageDurationMinutes-450.5) > 0.001 {
+		t.Errorf("expected 7d avg duration 450.5, got %f", *stats.Last7Days.AverageDurationMinutes)
+	}
+	if stats.Last7Days.AverageQuality == nil {
+		t.Fatal("expected non-nil 7d average quality")
+	}
+	if math.Abs(*stats.Last7Days.AverageQuality-8.25) > 0.001 {
+		t.Errorf("expected 7d avg quality 8.25, got %f", *stats.Last7Days.AverageQuality)
+	}
+
+	// 30-day window
+	if stats.Last30Days.RecordCount != 22 {
+		t.Errorf("expected 30d count 22, got %d", stats.Last30Days.RecordCount)
+	}
+	if stats.Last30Days.AverageDurationMinutes == nil {
+		t.Fatal("expected non-nil 30d average duration")
+	}
+	if math.Abs(*stats.Last30Days.AverageDurationMinutes-438.75) > 0.001 {
+		t.Errorf("expected 30d avg duration 438.75, got %f", *stats.Last30Days.AverageDurationMinutes)
+	}
+	if stats.Last30Days.AverageQuality == nil {
+		t.Fatal("expected non-nil 30d average quality")
+	}
+	if math.Abs(*stats.Last30Days.AverageQuality-7.9) > 0.001 {
+		t.Errorf("expected 30d avg quality 7.9, got %f", *stats.Last30Days.AverageQuality)
+	}
+}
+
+func TestService_Stats_NoData(t *testing.T) {
+	mock := &mockQuerier{
+		statsFn: func(ctx context.Context) (sqlc.GetSleepStatsRow, error) {
+			return sqlc.GetSleepStatsRow{
+				Count7d:        0,
+				AvgDuration7d:  pgtype.Float8{Valid: false},
+				AvgQuality7d:   pgtype.Float8{Valid: false},
+				Count30d:       0,
+				AvgDuration30d: pgtype.Float8{Valid: false},
+				AvgQuality30d:  pgtype.Float8{Valid: false},
+			}, nil
+		},
+	}
+
+	svc := sleep.NewService(mock)
+	stats, err := svc.Stats(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if stats.Last7Days.RecordCount != 0 {
+		t.Errorf("expected 7d count 0, got %d", stats.Last7Days.RecordCount)
+	}
+	if stats.Last7Days.AverageDurationMinutes != nil {
+		t.Errorf("expected nil 7d average duration, got %v", *stats.Last7Days.AverageDurationMinutes)
+	}
+	if stats.Last7Days.AverageQuality != nil {
+		t.Errorf("expected nil 7d average quality, got %v", *stats.Last7Days.AverageQuality)
+	}
+
+	if stats.Last30Days.RecordCount != 0 {
+		t.Errorf("expected 30d count 0, got %d", stats.Last30Days.RecordCount)
+	}
+	if stats.Last30Days.AverageDurationMinutes != nil {
+		t.Errorf("expected nil 30d average duration, got %v", *stats.Last30Days.AverageDurationMinutes)
+	}
+	if stats.Last30Days.AverageQuality != nil {
+		t.Errorf("expected nil 30d average quality, got %v", *stats.Last30Days.AverageQuality)
+	}
+}
+
+func TestService_Stats_7DayEmptyBut30DayHasData(t *testing.T) {
+	mock := &mockQuerier{
+		statsFn: func(ctx context.Context) (sqlc.GetSleepStatsRow, error) {
+			return sqlc.GetSleepStatsRow{
+				Count7d:        0,
+				AvgDuration7d:  pgtype.Float8{Valid: false},
+				AvgQuality7d:   pgtype.Float8{Valid: false},
+				Count30d:       3,
+				AvgDuration30d: pgtype.Float8{Float64: 420.0, Valid: true},
+				AvgQuality30d:  pgtype.Float8{Float64: 7.0, Valid: true},
+			}, nil
+		},
+	}
+
+	svc := sleep.NewService(mock)
+	stats, err := svc.Stats(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if stats.Last7Days.RecordCount != 0 {
+		t.Errorf("expected 7d count 0, got %d", stats.Last7Days.RecordCount)
+	}
+	if stats.Last7Days.AverageDurationMinutes != nil {
+		t.Error("expected nil 7d average duration")
+	}
+	if stats.Last30Days.RecordCount != 3 {
+		t.Errorf("expected 30d count 3, got %d", stats.Last30Days.RecordCount)
+	}
+	if stats.Last30Days.AverageDurationMinutes == nil || *stats.Last30Days.AverageDurationMinutes != 420.0 {
+		t.Errorf("expected 30d avg duration 420.0, got %v", stats.Last30Days.AverageDurationMinutes)
+	}
+}
+
+func TestService_Stats_DatabaseError(t *testing.T) {
+	dbErr := errors.New("stats query failed")
+	mock := &mockQuerier{
+		statsFn: func(ctx context.Context) (sqlc.GetSleepStatsRow, error) {
+			return sqlc.GetSleepStatsRow{}, dbErr
+		},
+	}
+
+	svc := sleep.NewService(mock)
+	_, err := svc.Stats(context.Background())
 	if !errors.Is(err, dbErr) {
 		t.Fatalf("expected db error, got %v", err)
 	}

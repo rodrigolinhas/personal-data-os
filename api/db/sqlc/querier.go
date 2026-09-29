@@ -18,6 +18,13 @@ type Querier interface {
 	CreateSleepLog(ctx context.Context, arg CreateSleepLogParams) (SleepLog, error)
 	// Deletes a sleep record by id and returns the number of affected rows.
 	DeleteSleepLog(ctx context.Context, id int64) (int64, error)
+	// Aggregates sleep statistics for the last 7 and 30 calendar days in a single query.
+	// 7-day window: [CURRENT_DATE - 6, CURRENT_DATE] inclusive (today + previous 6 days).
+	// 30-day window: [CURRENT_DATE - 29, CURRENT_DATE] inclusive (today + previous 29 days).
+	// Missing days are ignored; averages use only existing records as denominator.
+	// Returns NULL averages when no records exist in a window (record_count = 0).
+	// Future dates are explicitly excluded.
+	GetSleepStats(ctx context.Context) (GetSleepStatsRow, error)
 	// Returns sleep records ordered newest first, with LIMIT/OFFSET pagination.
 	ListSleepLogs(ctx context.Context, arg ListSleepLogsParams) ([]SleepLog, error)
 	// Updates an existing sleep record and returns the persisted row.
