@@ -21,6 +21,7 @@ type mockSleepService struct {
 	listFn   func(ctx context.Context, limit, offset int32) ([]sqlc.SleepLog, error)
 	updateFn func(ctx context.Context, id int64, in sleep.UpdateInput) (sqlc.SleepLog, error)
 	deleteFn func(ctx context.Context, id int64) error
+	statsFn  func(ctx context.Context) (sleep.Stats, error)
 }
 
 func (m *mockSleepService) Create(ctx context.Context, in sleep.CreateInput) (sqlc.SleepLog, error) {
@@ -49,6 +50,13 @@ func (m *mockSleepService) Delete(ctx context.Context, id int64) error {
 		return m.deleteFn(ctx, id)
 	}
 	return nil
+}
+
+func (m *mockSleepService) Stats(ctx context.Context) (sleep.Stats, error) {
+	if m.statsFn != nil {
+		return m.statsFn(ctx)
+	}
+	return sleep.Stats{}, nil
 }
 
 func syntheticSleepLog(id int64, date string, bedMicros, wakeMicros int64, duration int32, quality int16, notes *string) sqlc.SleepLog {
@@ -758,5 +766,162 @@ func TestSleepHandler_Delete(t *testing.T) {
 				tt.verifyBody(t, rr.Body.Bytes())
 			}
 		})
+	}
+}
+
+// --- Stats handler tests ---
+
+func TestSleepHandler_Stats(t *testing.T) {
+	avgDur7 := 450.5
+	avgQual7 := 8.25
+	avgDur30 := 438.75
+	avgQual30 := 7.9
+
+	tests := []struct {
+		name           string
+		statsFn        func(ctx context.Context) (sleep.Stats, error)
+		expectedStatus int
+		verifyResponse func(t *testing.T, body []byte)
+	}{
+		{
+			name: "Successful stats with data",
+			statsFn: func(ctx context.Context) (sleep.Stats, error) {
+				return sleep.Stats{
+					Last7Days: sleep.StatsSummary{
+						AverageDurationMinutes: &avgDur7,
+						AverageQuality:         &avgQual7,
+						RecordCount:            6,
+					},
+					Last30Days: sleep.StatsSummary{
+						AverageDurationMinutes: &avgDur30,
+						AverageQuality:         &avgQual30,
+						RecordCount:            22,
+					},
+				}, nil
+			},
+			expectedStatus: http.StatusOK,
+			verifyResponse: func(t *testing.T, body []byte) {
+				var resp map[string]interface{}
+				if err := json.Unmarshal(body, &resp); err != nil {
+					t.Fatalf("failed to parse response: %v", err)
+				}
+				// Verify last_7_days
+				last7, ok := resp["last_7_days"].(map[string]interface{})
+				if !ok {
+					t.Fatal("missing last_7_days")
+				}
+				if last7["average_duration_minutes"].(float64) != 450.5 {
+					t.Errorf("expected 7d avg duration 450.5, got %v", last7["average_duration_minutes"])
+				}
+				if last7["average_quality"].(float64) != 8.25 {
+					t.Errorf("expected 7d avg quality 8.25, got %v", last7["average_quality"])
+				}
+				if last7["record_count"].(float64) != 6 {
+					t.Errorf("expected 7d count 6, got %v", last7["record_count"])
+				}
+				// Verify last_30_days
+				last30, ok := resp["last_30_days"].(map[string]interface{})
+				if !ok {
+					t.Fatal("missing last_30_days")
+				}
+				if last30["average_duration_minutes"].(float64) != 438.75 {
+					t.Errorf("expected 30d avg duration 438.75, got %v", last30["average_duration_minutes"])
+				}
+				if last30["record_count"].(float64) != 22 {
+					t.Errorf("expected 30d count 22, got %v", last30["record_count"])
+				}
+			},
+		},
+		{
+			name: "No data returns 200 with null averages",
+			statsFn: func(ctx context.Context) (sleep.Stats, error) {
+				return sleep.Stats{
+					Last7Days:  sleep.StatsSummary{RecordCount: 0},
+					Last30Days: sleep.StatsSummary{RecordCount: 0},
+				}, nil
+			},
+			expectedStatus: http.StatusOK,
+			verifyResponse: func(t *testing.T, body []byte) {
+				var resp map[string]interface{}
+				if err := json.Unmarshal(body, &resp); err != nil {
+					t.Fatalf("failed to parse response: %v", err)
+				}
+				last7 := resp["last_7_days"].(map[string]interface{})
+				if last7["average_duration_minutes"] != nil {
+					t.Errorf("expected null 7d avg duration, got %v", last7["average_duration_minutes"])
+				}
+				if last7["average_quality"] != nil {
+					t.Errorf("expected null 7d avg quality, got %v", last7["average_quality"])
+				}
+				if last7["record_count"].(float64) != 0 {
+					t.Errorf("expected 7d count 0, got %v", last7["record_count"])
+				}
+				last30 := resp["last_30_days"].(map[string]interface{})
+				if last30["average_duration_minutes"] != nil {
+					t.Errorf("expected null 30d avg duration, got %v", last30["average_duration_minutes"])
+				}
+				if last30["average_quality"] != nil {
+					t.Errorf("expected null 30d avg quality, got %v", last30["average_quality"])
+				}
+				if last30["record_count"].(float64) != 0 {
+					t.Errorf("expected 30d count 0, got %v", last30["record_count"])
+				}
+			},
+		},
+		{
+			name: "Service error returns 500",
+			statsFn: func(ctx context.Context) (sleep.Stats, error) {
+				return sleep.Stats{}, errors.New("db error")
+			},
+			expectedStatus: http.StatusInternalServerError,
+			verifyResponse: func(t *testing.T, body []byte) {
+				var errResp ErrorResponse
+				if err := json.Unmarshal(body, &errResp); err != nil {
+					t.Fatalf("failed to parse error response: %v", err)
+				}
+				if errResp.Error.Code != "INTERNAL_ERROR" {
+					t.Errorf("expected INTERNAL_ERROR, got %s", errResp.Error.Code)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockSvc := &mockSleepService{statsFn: tt.statsFn}
+			router := NewRouter(mockSvc)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/sleep/stats", nil)
+			rr := httptest.NewRecorder()
+
+			router.ServeHTTP(rr, req)
+
+			if rr.Code != tt.expectedStatus {
+				t.Fatalf("expected status %d, got %d. Body: %s", tt.expectedStatus, rr.Code, rr.Body.String())
+			}
+
+			if rr.Code == http.StatusOK {
+				ct := rr.Header().Get("Content-Type")
+				if ct != "application/json" {
+					t.Errorf("expected Content-Type application/json, got %q", ct)
+				}
+			}
+
+			if tt.verifyResponse != nil {
+				tt.verifyResponse(t, rr.Body.Bytes())
+			}
+		})
+	}
+}
+
+func TestSleepHandler_Stats_NilService(t *testing.T) {
+	router := NewRouter(nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/sleep/stats", nil)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected status %d for nil service, got %d", http.StatusInternalServerError, rr.Code)
 	}
 }

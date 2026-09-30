@@ -20,6 +20,17 @@ export const SleepRecordSchema = z.object({
 
 export const SleepListSchema = z.array(SleepRecordSchema);
 
+export const SleepStatsSummarySchema = z.object({
+  average_duration_minutes: z.number().nullable(),
+  average_quality: z.number().nullable(),
+  record_count: z.number().int().nonnegative(),
+});
+
+export const SleepStatsResponseSchema = z.object({
+  last_7_days: SleepStatsSummarySchema,
+  last_30_days: SleepStatsSummarySchema,
+});
+
 // Fields the user submits — duration_minutes is NEVER included here.
 export const CreateSleepInputSchema = z.object({
   date: z.string().min(1, 'Date is required'),
@@ -38,6 +49,8 @@ export const CreateSleepInputSchema = z.object({
 // ---------------------------------------------------------------------------
 
 export type SleepRecord = z.infer<typeof SleepRecordSchema>;
+export type SleepStatsSummary = z.infer<typeof SleepStatsSummarySchema>;
+export type SleepStatsResponse = z.infer<typeof SleepStatsResponseSchema>;
 // UpdateSleepInput uses the same editable fields as CreateSleepInput —
 // a single validation schema covers both operations.
 export type CreateSleepInput = z.infer<typeof CreateSleepInputSchema>;
@@ -103,6 +116,10 @@ export async function deleteSleep(id: number): Promise<void> {
   });
 }
 
+export async function getSleepStats(): Promise<SleepStatsResponse> {
+  return fetchApi<SleepStatsResponse>('/api/v1/sleep/stats', SleepStatsResponseSchema);
+}
+
 // ---------------------------------------------------------------------------
 // Query hooks
 // ---------------------------------------------------------------------------
@@ -113,6 +130,14 @@ export function useSleepQuery(params: ListSleepParams) {
   return useQuery({
     queryKey: [SLEEP_QUERY_KEY, 'list', params],
     queryFn: () => listSleep(params),
+    retry: 1,
+  });
+}
+
+export function useSleepStatsQuery() {
+  return useQuery({
+    queryKey: [SLEEP_QUERY_KEY, 'stats'],
+    queryFn: () => getSleepStats(),
     retry: 1,
   });
 }

@@ -3,6 +3,7 @@ import { useHealthQuery } from '../api/health';
 import { Activity, CheckCircle2, AlertCircle, Moon } from 'lucide-react';
 import { SleepForm, SleepFormMode } from '../features/sleep/SleepForm';
 import { SleepHistory } from '../features/sleep/SleepHistory';
+import { SleepStats } from '../features/sleep/SleepStats';
 import { SleepRecord } from '../api/sleep';
 
 export const App: React.FC = () => {
@@ -89,6 +90,9 @@ export const App: React.FC = () => {
             </div>
           </div>
         </section>
+
+        {/* Recent Sleep Statistics */}
+        <SleepStats />
 
         {/* Sleep workspace: form + history */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[380px_1fr]">

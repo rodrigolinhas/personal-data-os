@@ -46,3 +46,22 @@ RETURNING *;
 DELETE FROM sleep_logs
 WHERE id = $1;
 
+-- name: GetSleepStats :one
+-- Aggregates sleep statistics for the last 7 and 30 calendar days in a single query.
+-- 7-day window: [CURRENT_DATE - 6, CURRENT_DATE] inclusive (today + previous 6 days).
+-- 30-day window: [CURRENT_DATE - 29, CURRENT_DATE] inclusive (today + previous 29 days).
+-- Missing days are ignored; averages use only existing records as denominator.
+-- Returns NULL averages when no records exist in a window (record_count = 0).
+-- Future dates are explicitly excluded.
+SELECT
+    COUNT(CASE WHEN date >= CURRENT_DATE - 6 THEN 1 END) AS count_7d,
+    AVG(CASE WHEN date >= CURRENT_DATE - 6 THEN duration_minutes::double precision END) AS avg_duration_7d,
+    AVG(CASE WHEN date >= CURRENT_DATE - 6 THEN quality::double precision END) AS avg_quality_7d,
+    COUNT(*) AS count_30d,
+    AVG(duration_minutes::double precision) AS avg_duration_30d,
+    AVG(quality::double precision) AS avg_quality_30d
+FROM sleep_logs
+WHERE date >= CURRENT_DATE - 29
+  AND date <= CURRENT_DATE;
+
+
