@@ -26,6 +26,30 @@ function mockSleepQuery(data: sleepApi.SleepRecord[] = []) {
   } as unknown as ReturnType<typeof sleepApi.useSleepQuery>);
 }
 
+const defaultStatsData: sleepApi.SleepStatsResponse = {
+  last_7_days: {
+    average_duration_minutes: 450.5,
+    average_quality: 8.2,
+    record_count: 6,
+  },
+  last_30_days: {
+    average_duration_minutes: 438.75,
+    average_quality: 7.9,
+    record_count: 22,
+  },
+};
+
+function mockSleepStatsQuery(data: sleepApi.SleepStatsResponse = defaultStatsData) {
+  vi.spyOn(sleepApi, 'useSleepStatsQuery').mockReturnValue({
+    data,
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+    isFetching: false,
+  } as unknown as ReturnType<typeof sleepApi.useSleepStatsQuery>);
+}
+
 function mockCreateMutation() {
   vi.spyOn(sleepApi, 'useCreateSleepMutation').mockReturnValue({
     mutate: vi.fn(),
@@ -48,6 +72,7 @@ function renderApp(healthData?: healthApi.HealthResponse, isError = false) {
   } as unknown as ReturnType<typeof healthApi.useHealthQuery>);
 
   mockSleepQuery();
+  mockSleepStatsQuery();
   mockCreateMutation();
 
   const queryClient = makeQueryClient();
@@ -96,6 +121,23 @@ describe('App — Sleep Tracking workspace', () => {
 
   it('renders the Sleep History section heading', () => {
     renderApp({ status: 'ok' });
+    expect(screen.getByRole('heading', { name: /sleep history/i })).toBeInTheDocument();
+  });
+
+  it('renders the Sleep Statistics section heading and cards', () => {
+    renderApp({ status: 'ok' });
+    expect(screen.getByRole('heading', { name: /sleep statistics/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /last 7 days/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /last 30 days/i })).toBeInTheDocument();
+  });
+
+  it('integrates SleepStats alongside SleepForm and SleepHistory simultaneously', () => {
+    renderApp({ status: 'ok' });
+    // Stats is rendered
+    expect(screen.getByRole('heading', { name: /sleep statistics/i })).toBeInTheDocument();
+    // Form is rendered
+    expect(screen.getByRole('button', { name: /log sleep/i })).toBeInTheDocument();
+    // History is rendered
     expect(screen.getByRole('heading', { name: /sleep history/i })).toBeInTheDocument();
   });
 });
