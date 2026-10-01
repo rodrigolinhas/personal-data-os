@@ -2,6 +2,7 @@ package http
 
 import (
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 
@@ -16,13 +17,22 @@ func SlogLogger() func(next http.Handler) http.Handler {
 			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 
 			defer func() {
+				clientIP := middleware.GetClientIP(r.Context())
+				if clientIP == "" {
+					if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+						clientIP = host
+					} else {
+						clientIP = r.RemoteAddr
+					}
+				}
+
 				slog.Info("HTTP Request",
 					"method", r.Method,
 					"path", r.URL.Path,
 					"status", ww.Status(),
 					"duration_ms", time.Since(start).Milliseconds(),
 					"bytes", ww.BytesWritten(),
-					"remote_ip", r.RemoteAddr,
+					"client_ip", clientIP,
 				)
 			}()
 

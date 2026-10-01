@@ -14,7 +14,7 @@ func NewRouter(sleepService SleepService) *chi.Mux {
 
 	// Base middlewares
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
+	r.Use(middleware.ClientIPFromRemoteAddr)
 	r.Use(SlogLogger())
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(30 * time.Second))

@@ -129,3 +129,108 @@ func TestRouterEndpoints_NilService(t *testing.T) {
 		t.Errorf("Expected status %d, got %d", http.StatusInternalServerError, sleepRR.Code)
 	}
 }
+
+func TestRouter_ClientIP_SecurityRegression(t *testing.T) {
+	buf, cleanup := captureSlogOutput(t)
+	defer cleanup()
+
+	mockSvc := &mockSleepService{
+		listFn: func(ctx context.Context, limit, offset int32) ([]sqlc.SleepLog, error) {
+			return []sqlc.SleepLog{}, nil
+		},
+		statsFn: func(ctx context.Context) (sleep.Stats, error) {
+			return sleep.Stats{}, nil
+		},
+	}
+	router := NewRouter(mockSvc)
+
+	routes := []struct {
+		name string
+		path string
+	}{
+		{name: "Health endpoint", path: "/health"},
+		{name: "Sleep list endpoint", path: "/api/v1/sleep"},
+		{name: "Sleep stats endpoint", path: "/api/v1/sleep/stats"},
+	}
+
+	for _, rt := range routes {
+		t.Run(rt.name, func(t *testing.T) {
+			buf.Reset()
+
+			req := httptest.NewRequest(http.MethodGet, rt.path, nil)
+			req.RemoteAddr = "203.0.113.10:54321"
+			req.Header.Set("X-Forwarded-For", "127.0.0.1")
+			req.Header.Set("X-Real-IP", "10.0.0.1")
+			req.Header.Set("True-Client-IP", "192.168.1.1")
+
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusOK {
+				t.Fatalf("expected status 200 for %s, got %d", rt.path, rr.Code)
+			}
+
+			// RemoteAddr must NOT be mutated by router middleware
+			if req.RemoteAddr != "203.0.113.10:54321" {
+				t.Errorf("RemoteAddr was mutated: got %q, want %q", req.RemoteAddr, "203.0.113.10:54321")
+			}
+
+			entry := parseSingleLogEntry(t, buf.Bytes())
+			clientIP, ok := entry["client_ip"].(string)
+			if !ok {
+				t.Fatalf("missing client_ip in log entry for %s: %#v", rt.path, entry)
+			}
+
+			// The client IP must be extracted from the TCP peer (RemoteAddr), not attacker-controlled headers
+			if clientIP != "203.0.113.10" {
+				t.Errorf("expected client_ip '203.0.113.10', got %q", clientIP)
+			}
+			if clientIP == "127.0.0.1" || clientIP == "10.0.0.1" || clientIP == "192.168.1.1" {
+				t.Errorf("spoofed header was trusted as client IP: %q", clientIP)
+			}
+		})
+	}
+}
+
+func TestRouter_ClientIP_IPv6(t *testing.T) {
+	buf, cleanup := captureSlogOutput(t)
+	defer cleanup()
+
+	router := NewRouter(nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req.RemoteAddr = "[2001:db8::1]:54321"
+	req.Header.Set("X-Forwarded-For", "2001:db8::99")
+	req.Header.Set("X-Real-IP", "2001:db8::88")
+	req.Header.Set("True-Client-IP", "2001:db8::77")
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rr.Code)
+	}
+
+	if req.RemoteAddr != "[2001:db8::1]:54321" {
+		t.Errorf("RemoteAddr was mutated: got %q, want %q", req.RemoteAddr, "[2001:db8::1]:54321")
+	}
+
+	entry := parseSingleLogEntry(t, buf.Bytes())
+	if clientIP, ok := entry["client_ip"].(string); !ok || clientIP != "2001:db8::1" {
+		t.Errorf("expected client_ip '2001:db8::1', got %#v", entry["client_ip"])
+	}
+}
+
+func TestRouter_StandardHttptestRequest_NoPanic(t *testing.T) {
+	router := NewRouter(nil)
+
+	// Standard httptest request sets RemoteAddr to 192.0.2.1:1234
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rr := httptest.NewRecorder()
+
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rr.Code)
+	}
+}
