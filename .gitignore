@@ -1,3 +1,5 @@
+.graphy/
+
 # Environment variables
 .env
 .env.local
