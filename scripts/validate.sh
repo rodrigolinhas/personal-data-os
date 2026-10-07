@@ -59,6 +59,10 @@ run_frontend() {
   section "Frontend (React + TypeScript)"
   cd "$ROOT/web"
 
+  echo "  Auditing npm dependencies..."
+  npm run audit
+  pass "npm audit"
+
   echo "  Running TypeScript typecheck..."
   npm run typecheck && pass "typecheck"
 
