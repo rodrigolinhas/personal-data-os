@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SleepForm } from './SleepForm';
@@ -76,14 +76,25 @@ describe('SleepForm — rendering (create mode)', () => {
     expect(screen.getByRole('button', { name: /log sleep/i })).toBeInTheDocument();
   });
 
+  it('constrains sleep quality to whole values from 1 to 10', () => {
+    renderForm();
+    const qualityInput = screen.getByLabelText(/sleep quality/i);
+
+    expect(qualityInput).toHaveAttribute('type', 'number');
+    expect(qualityInput).toHaveAttribute('min', '1');
+    expect(qualityInput).toHaveAttribute('max', '10');
+    expect(qualityInput).toHaveAttribute('step', '1');
+    expect(qualityInput).toHaveAttribute('inputmode', 'numeric');
+  });
+
   it('submit button is enabled initially', () => {
     renderForm();
     expect(screen.getByRole('button', { name: /log sleep/i })).not.toBeDisabled();
   });
 
-  it('does not show a Cancel button in create mode', () => {
+  it('shows a Cancel button in create mode', () => {
     renderForm();
-    expect(screen.queryByRole('button', { name: /cancel/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();
   });
 });
 
@@ -125,7 +136,7 @@ describe('SleepForm — rendering (edit mode)', () => {
     renderForm({ mode: { type: 'edit', record: validRecord } });
 
     expect(screen.getByText(/editing record for/i)).toBeInTheDocument();
-    expect(screen.getByText('2026-08-24')).toBeInTheDocument();
+    expect(screen.getByText('24 Aug 2026')).toBeInTheDocument();
   });
 
   it('uses the edit form aria-label in edit mode', () => {
@@ -151,6 +162,7 @@ describe('SleepForm — validation', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/date is required/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/date/i)).toHaveFocus();
     });
   });
 
@@ -377,7 +389,9 @@ describe('SleepForm — submission (edit mode)', () => {
     await user.clear(qualityInput);
     await user.type(qualityInput, '9');
 
-    await user.click(screen.getByRole('button', { name: /save changes/i }));
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+    });
 
     await waitFor(() => {
       expect(mutateFn).toHaveBeenCalledOnce();
@@ -438,7 +452,9 @@ describe('SleepForm — submission (edit mode)', () => {
     const user = userEvent.setup();
     renderForm({ mode: { type: 'edit', record: validRecord } });
 
-    await user.click(screen.getByRole('button', { name: /save changes/i }));
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /save changes/i }));
+    });
 
     await waitFor(() => {
       expect(screen.getByText(/a sleep record already exists for that date/i)).toBeInTheDocument();
@@ -502,7 +518,30 @@ describe('SleepForm — cancel (edit mode)', () => {
     renderForm({ mode: { type: 'edit', record: validRecord }, onEditCancel });
 
     // Target the standalone Cancel button (not the banner X icon)
-    await user.click(screen.getByRole('button', { name: /^cancel$/i }));
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /^cancel$/i }));
+    });
+
+    expect(mutateFn).not.toHaveBeenCalled();
+    expect(onEditCancel).toHaveBeenCalledOnce();
+  });
+});
+
+describe('SleepForm — cancel (create mode)', () => {
+  it('calls onEditCancel without sending any request', async () => {
+    const mutateFn = vi.fn();
+    vi.spyOn(sleepApi, 'useCreateSleepMutation').mockReturnValue({
+      ...defaultCreateMock(),
+      mutate: mutateFn,
+    } as unknown as ReturnType<typeof sleepApi.useCreateSleepMutation>);
+
+    const onEditCancel = vi.fn();
+    const user = userEvent.setup();
+    renderForm({ onEditCancel });
+
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: /^cancel$/i }));
+    });
 
     expect(mutateFn).not.toHaveBeenCalled();
     expect(onEditCancel).toHaveBeenCalledOnce();

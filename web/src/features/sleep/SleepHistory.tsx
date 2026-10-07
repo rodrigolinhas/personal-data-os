@@ -3,6 +3,7 @@ import { RefreshCw, AlertCircle, Moon, Pencil, Trash2, Loader2 } from 'lucide-re
 import { SleepRecord, useSleepQuery, useDeleteSleepMutation } from '../../api/sleep';
 import { ApiError } from '../../api/client';
 import { formatDuration } from './formatDuration';
+import { formatDisplayDate, formatTimeRange } from './formatDate';
 import { SleepPagination } from './SleepPagination';
 
 // ---------------------------------------------------------------------------
@@ -14,18 +15,15 @@ export interface SleepHistoryProps {
   onEdit: (record: SleepRecord) => void;
 }
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
-
 const LIMIT = 20;
+
+// ---------------------------------------------------------------------------
+// SleepHistory
+// ---------------------------------------------------------------------------
 
 export const SleepHistory: React.FC<SleepHistoryProps> = ({ editingId = null, onEdit }) => {
   const [offset, setOffset] = useState(0);
-
-  // deletingId: which record has the inline confirmation open
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  // deleteError: per-delete inline error message
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const {
@@ -35,16 +33,15 @@ export const SleepHistory: React.FC<SleepHistoryProps> = ({ editingId = null, on
     error,
     refetch,
     isFetching,
-  } = useSleepQuery({
-    limit: LIMIT,
-    offset,
-  });
+  } = useSleepQuery({ limit: LIMIT, offset });
 
   const deleteMutation = useDeleteSleepMutation();
 
+  // ── Pagination handlers ──────────────────────────────────────────────
   const handlePrevious = () => setOffset((prev) => Math.max(0, prev - LIMIT));
   const handleNext = () => setOffset((prev) => prev + LIMIT);
 
+  // ── Delete flow ──────────────────────────────────────────────────────
   const handleDeleteClick = (id: number) => {
     setDeleteError(null);
     setDeletingId(id);
@@ -61,7 +58,6 @@ export const SleepHistory: React.FC<SleepHistoryProps> = ({ editingId = null, on
       onSuccess: () => {
         setDeletingId(null);
         setDeleteError(null);
-        // Pagination edge: if this was the only record on a non-first page, go back.
         if (records && records.length === 1 && offset > 0) {
           setOffset((prev) => Math.max(0, prev - LIMIT));
         }
@@ -80,9 +76,7 @@ export const SleepHistory: React.FC<SleepHistoryProps> = ({ editingId = null, on
     });
   };
 
-  // -------------------------------------------------------------------------
-  // Loading state
-  // -------------------------------------------------------------------------
+  // ── Loading ──────────────────────────────────────────────────────────
   if (isLoading) {
     return (
       <div
@@ -90,18 +84,18 @@ export const SleepHistory: React.FC<SleepHistoryProps> = ({ editingId = null, on
         aria-busy="true"
         className="flex flex-col items-center justify-center gap-3 py-12 text-slate-400"
       >
-        <RefreshCw className="h-6 w-6 animate-spin text-indigo-400" aria-hidden="true" />
+        <RefreshCw
+          className="h-5 w-5 animate-spin text-indigo-400 motion-reduce:animate-none"
+          aria-hidden="true"
+        />
         <span className="text-sm">Loading sleep history…</span>
       </div>
     );
   }
 
-  // -------------------------------------------------------------------------
-  // Error state
-  // -------------------------------------------------------------------------
+  // ── Error ────────────────────────────────────────────────────────────
   if (isError) {
     const message = error instanceof Error ? error.message : 'Failed to load sleep records.';
-
     return (
       <div
         role="alert"
@@ -111,11 +105,12 @@ export const SleepHistory: React.FC<SleepHistoryProps> = ({ editingId = null, on
           <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span className="font-medium">Could not load sleep history</span>
         </div>
-        <p className="mb-3 font-mono text-xs text-rose-400/80">{message}</p>
+        <p className="mb-3 text-xs text-rose-400/80">{message}</p>
         <button
           id="sleep-history-retry"
+          type="button"
           onClick={() => void refetch()}
-          className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-300 transition hover:border-rose-400/50 hover:text-rose-200"
+          className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-300 transition hover:border-rose-400/50 hover:text-rose-200 focus:outline-none focus-visible:ring-1 focus-visible:ring-rose-400"
         >
           Retry
         </button>
@@ -123,26 +118,24 @@ export const SleepHistory: React.FC<SleepHistoryProps> = ({ editingId = null, on
     );
   }
 
-  // -------------------------------------------------------------------------
-  // Empty state
-  // -------------------------------------------------------------------------
+  // ── Empty ────────────────────────────────────────────────────────────
   if (!records || records.length === 0) {
-    // Only show empty state on the first page to avoid confusion when
-    // navigating beyond the last page.
     if (offset === 0) {
       return (
         <div className="flex flex-col items-center justify-center gap-3 py-12 text-center text-slate-400">
-          <Moon className="h-8 w-8 text-slate-600" aria-hidden="true" />
-          <p className="text-sm font-medium text-slate-300">No sleep records yet.</p>
-          <p className="text-xs text-slate-500">Add your first sleep record using the form.</p>
+          <Moon className="h-8 w-8 text-slate-700" aria-hidden="true" />
+          <p className="text-sm font-medium text-slate-400">No sleep records yet.</p>
+          <p className="text-xs text-slate-400">
+            Add your first sleep record using the button above.
+          </p>
         </div>
       );
     }
-    // Navigated past last page — go back automatically.
     return (
       <div className="py-6 text-center text-sm text-slate-400">
         <p className="mb-3">No records on this page.</p>
         <button
+          type="button"
           onClick={handlePrevious}
           className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-slate-600 hover:text-white"
         >
@@ -152,23 +145,23 @@ export const SleepHistory: React.FC<SleepHistoryProps> = ({ editingId = null, on
     );
   }
 
-  // -------------------------------------------------------------------------
-  // Records table
-  // -------------------------------------------------------------------------
+  // ── Records table ────────────────────────────────────────────────────
   return (
     <div className="space-y-4">
       {isFetching && !isLoading && (
         <div
           aria-label="Refreshing sleep history"
           aria-live="polite"
-          className="flex items-center gap-1.5 text-xs text-slate-500"
+          className="flex items-center gap-1.5 text-xs text-slate-400"
         >
-          <RefreshCw className="h-3 w-3 animate-spin" aria-hidden="true" />
+          <RefreshCw
+            className="h-3 w-3 animate-spin motion-reduce:animate-none"
+            aria-hidden="true"
+          />
           Refreshing…
         </div>
       )}
 
-      {/* Per-delete error banner (404 or network) */}
       {deleteError && (
         <div
           role="alert"
@@ -181,50 +174,26 @@ export const SleepHistory: React.FC<SleepHistoryProps> = ({ editingId = null, on
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-slate-800">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-xl border border-slate-800/60">
+        <table className="w-full min-w-[760px] text-sm">
           <thead>
-            <tr className="border-b border-slate-800 bg-slate-900/60 text-left">
-              <th
-                scope="col"
-                className="px-4 py-3 font-mono text-xs font-semibold uppercase tracking-wider text-slate-400"
-              >
+            <tr className="border-b border-slate-800/60 text-left">
+              <th scope="col" className="px-4 py-3 text-xs font-medium text-slate-400">
                 Date
               </th>
-              <th
-                scope="col"
-                className="px-4 py-3 font-mono text-xs font-semibold uppercase tracking-wider text-slate-400"
-              >
-                Bedtime
+              <th scope="col" className="px-4 py-3 text-xs font-medium text-slate-400">
+                Sleep
               </th>
-              <th
-                scope="col"
-                className="px-4 py-3 font-mono text-xs font-semibold uppercase tracking-wider text-slate-400"
-              >
-                Wake
-              </th>
-              <th
-                scope="col"
-                className="px-4 py-3 font-mono text-xs font-semibold uppercase tracking-wider text-slate-400"
-              >
+              <th scope="col" className="px-4 py-3 text-xs font-medium text-slate-400">
                 Duration
               </th>
-              <th
-                scope="col"
-                className="px-4 py-3 font-mono text-xs font-semibold uppercase tracking-wider text-slate-400"
-              >
+              <th scope="col" className="px-4 py-3 text-xs font-medium text-slate-400">
                 Quality
               </th>
-              <th
-                scope="col"
-                className="px-4 py-3 font-mono text-xs font-semibold uppercase tracking-wider text-slate-400"
-              >
+              <th scope="col" className="px-4 py-3 text-xs font-medium text-slate-400">
                 Notes
               </th>
-              <th
-                scope="col"
-                className="px-4 py-3 font-mono text-xs font-semibold uppercase tracking-wider text-slate-400"
-              >
+              <th scope="col" className="px-4 py-3 text-right">
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
@@ -234,50 +203,63 @@ export const SleepHistory: React.FC<SleepHistoryProps> = ({ editingId = null, on
               const isBeingEdited = record.id === editingId;
               const isConfirmingDelete = record.id === deletingId;
               const isDeleting = isConfirmingDelete && deleteMutation.isPending;
+              const displayDate = formatDisplayDate(record.date);
 
               return (
                 <tr
                   key={record.id}
-                  className={`border-b border-slate-800/60 transition ${
+                  className={`border-b border-slate-800/40 transition-colors ${
                     idx === records.length - 1 ? 'border-b-0' : ''
-                  } ${isBeingEdited ? 'bg-indigo-500/5 ring-1 ring-inset ring-indigo-500/20' : 'hover:bg-slate-800/30'}`}
+                  } ${
+                    isBeingEdited
+                      ? 'bg-indigo-500/5 ring-1 ring-inset ring-indigo-500/20'
+                      : 'hover:bg-slate-800/20'
+                  }`}
                 >
-                  <td className="px-4 py-3 font-mono text-xs text-slate-300">{record.date}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-300">{record.bedtime}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-300">{record.wake_time}</td>
-                  <td className="px-4 py-3">
-                    <span className="rounded-md bg-indigo-500/10 px-2 py-0.5 font-mono text-xs font-medium text-indigo-300">
-                      {formatDuration(record.duration_minutes)}
-                    </span>
+                  {/* Date */}
+                  <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-200">
+                    {displayDate}
                   </td>
-                  <td className="px-4 py-3">
-                    <span className="rounded-md bg-sky-500/10 px-2 py-0.5 font-mono text-xs font-medium text-sky-300">
-                      {record.quality} / 10
-                    </span>
+
+                  {/* Sleep time range */}
+                  <td className="whitespace-nowrap px-4 py-3 text-sm tabular-nums text-slate-400">
+                    {formatTimeRange(record.bedtime, record.wake_time)}
                   </td>
-                  <td className="max-w-[160px] px-4 py-3 text-xs text-slate-400">
+
+                  {/* Duration */}
+                  <td className="whitespace-nowrap px-4 py-3 text-sm font-medium tabular-nums text-white">
+                    {formatDuration(record.duration_minutes)}
+                  </td>
+
+                  {/* Quality */}
+                  <td className="whitespace-nowrap px-4 py-3 text-sm tabular-nums text-slate-300">
+                    {record.quality} / 10
+                  </td>
+
+                  {/* Notes */}
+                  <td className="max-w-[200px] px-4 py-3 text-xs text-slate-400">
                     {record.notes ? (
                       <span className="line-clamp-2 break-words">{record.notes}</span>
                     ) : (
-                      <span className="text-slate-600" aria-label="No notes">
+                      <span className="text-slate-700" aria-label="No notes">
                         —
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3">
+
+                  {/* Actions */}
+                  <td className="px-4 py-3 text-right">
                     {isConfirmingDelete ? (
-                      /* Inline delete confirmation */
                       <div className="flex min-w-[200px] flex-col gap-2">
                         <p className="text-xs text-slate-300">
-                          Delete record for{' '}
-                          <span className="font-mono font-semibold">{record.date}</span>?
+                          Delete record for <span className="font-semibold">{displayDate}</span>?
                         </p>
-                        <div className="flex gap-1.5">
+                        <div className="flex justify-end gap-1.5">
                           <button
                             type="button"
                             onClick={handleCancelDelete}
                             disabled={isDeleting}
-                            className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 transition hover:border-slate-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                            className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 transition-colors hover:border-slate-600 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             Cancel
                           </button>
@@ -285,40 +267,40 @@ export const SleepHistory: React.FC<SleepHistoryProps> = ({ editingId = null, on
                             type="button"
                             onClick={() => handleConfirmDelete(record)}
                             disabled={isDeleting}
-                            aria-label={`Confirm delete sleep record for ${record.date}`}
-                            className="flex items-center gap-1 rounded border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-xs font-medium text-rose-300 transition hover:border-rose-400/60 hover:bg-rose-500/20 hover:text-rose-200 disabled:cursor-not-allowed disabled:opacity-50"
+                            aria-label={`Confirm delete sleep record for ${displayDate}`}
+                            className="flex items-center gap-1 rounded border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-xs font-medium text-rose-300 transition-colors hover:border-rose-400/60 hover:bg-rose-500/20 hover:text-rose-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {isDeleting ? (
                               <>
-                                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                                <Loader2
+                                  className="h-3 w-3 animate-spin motion-reduce:animate-none"
+                                  aria-hidden="true"
+                                />
                                 Deleting…
                               </>
                             ) : (
-                              'Delete record'
+                              'Confirm delete'
                             )}
                           </button>
                         </div>
                       </div>
                     ) : (
-                      /* Normal action buttons */
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
                           onClick={() => onEdit(record)}
-                          aria-label={`Edit sleep record for ${record.date}`}
-                          className="flex items-center gap-1 rounded px-2 py-1 text-xs text-slate-400 transition hover:bg-slate-700/60 hover:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          aria-label={`Edit sleep record for ${displayDate}`}
+                          className="flex h-9 w-9 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-800 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                         >
-                          <Pencil className="h-3 w-3" aria-hidden="true" />
-                          Edit
+                          <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                         </button>
                         <button
                           type="button"
                           onClick={() => handleDeleteClick(record.id)}
-                          aria-label={`Delete sleep record for ${record.date}`}
-                          className="flex items-center gap-1 rounded px-2 py-1 text-xs text-slate-400 transition hover:bg-rose-500/10 hover:text-rose-300 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                          aria-label={`Delete sleep record for ${displayDate}`}
+                          className="flex h-9 w-9 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-rose-500/10 hover:text-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
                         >
-                          <Trash2 className="h-3 w-3" aria-hidden="true" />
-                          Delete
+                          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                         </button>
                       </div>
                     )}
