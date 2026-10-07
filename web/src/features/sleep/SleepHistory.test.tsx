@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as sleepApi from '../../api/sleep';
 import { SleepHistory } from './SleepHistory';
 import { formatDuration } from './formatDuration';
+import { formatDisplayDate, formatTimeRange } from './formatDate';
 import { ApiError } from '../../api/client';
 
 // ---------------------------------------------------------------------------
@@ -70,6 +71,38 @@ describe('formatDuration', () => {
   it('formats minutes only', () => {
     expect(formatDuration(45)).toBe('45m');
     expect(formatDuration(30)).toBe('30m');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatDisplayDate
+// ---------------------------------------------------------------------------
+
+describe('formatDisplayDate', () => {
+  it('formats ISO dates for display', () => {
+    expect(formatDisplayDate('2026-08-24')).toBe('24 Aug 2026');
+    expect(formatDisplayDate('2026-01-01')).toBe('1 Jan 2026');
+    expect(formatDisplayDate('2026-12-31')).toBe('31 Dec 2026');
+  });
+
+  it('returns original string for invalid dates', () => {
+    expect(formatDisplayDate('invalid')).toBe('invalid');
+    expect(formatDisplayDate('2026-13-01')).toBe('2026-13-01');
+    expect(formatDisplayDate('2026-02-30')).toBe('2026-02-30');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatTimeRange
+// ---------------------------------------------------------------------------
+
+describe('formatTimeRange', () => {
+  it('formats bedtime and wake time into a range', () => {
+    expect(formatTimeRange('23:30', '07:00')).toBe('23:30 → 07:00');
+  });
+
+  it('normalizes HH:MM:SS to HH:MM', () => {
+    expect(formatTimeRange('23:30:00', '07:00:00')).toBe('23:30 → 07:00');
   });
 });
 
@@ -165,7 +198,7 @@ describe('SleepHistory — error state', () => {
 // ---------------------------------------------------------------------------
 
 describe('SleepHistory — records', () => {
-  it('renders records with date, bedtime, wake time, duration, and quality', () => {
+  it('renders records with formatted date, time range, duration, and quality', () => {
     vi.spyOn(sleepApi, 'useSleepQuery').mockReturnValue({
       data: [makeRecord()],
       isLoading: false,
@@ -177,9 +210,8 @@ describe('SleepHistory — records', () => {
     vi.spyOn(sleepApi, 'useDeleteSleepMutation').mockReturnValue(defaultDeleteMock());
 
     renderHistory();
-    expect(screen.getByText('2026-08-24')).toBeInTheDocument();
-    expect(screen.getByText('23:30')).toBeInTheDocument();
-    expect(screen.getByText('07:00')).toBeInTheDocument();
+    expect(screen.getByText('24 Aug 2026')).toBeInTheDocument();
+    expect(screen.getByText('23:30 → 07:00')).toBeInTheDocument();
     // Duration from server-returned duration_minutes (450 → "7h 30m")
     expect(screen.getByText('7h 30m')).toBeInTheDocument();
     expect(screen.getByText('8 / 10')).toBeInTheDocument();
@@ -227,9 +259,9 @@ describe('SleepHistory — records', () => {
     vi.spyOn(sleepApi, 'useDeleteSleepMutation').mockReturnValue(defaultDeleteMock());
 
     renderHistory();
-    const dates = screen.getAllByText(/2026-08-2[45]/);
-    expect(dates[0]).toHaveTextContent('2026-08-25');
-    expect(dates[1]).toHaveTextContent('2026-08-24');
+    const dates = screen.getAllByText(/2[45] Aug 2026/);
+    expect(dates[0]).toHaveTextContent('25 Aug 2026');
+    expect(dates[1]).toHaveTextContent('24 Aug 2026');
   });
 
   it('does NOT display id, created_at, or updated_at columns', () => {
@@ -267,7 +299,7 @@ describe('SleepHistory — edit action', () => {
 
     renderHistory();
     expect(
-      screen.getByRole('button', { name: /edit sleep record for 2026-08-24/i })
+      screen.getByRole('button', { name: /edit sleep record for 24 aug 2026/i })
     ).toBeInTheDocument();
   });
 
@@ -287,7 +319,7 @@ describe('SleepHistory — edit action', () => {
     const user = userEvent.setup();
     renderHistory({ onEdit });
 
-    await user.click(screen.getByRole('button', { name: /edit sleep record for 2026-08-24/i }));
+    await user.click(screen.getByRole('button', { name: /edit sleep record for 24 aug 2026/i }));
 
     expect(onEdit).toHaveBeenCalledOnce();
     expect(onEdit).toHaveBeenCalledWith(record);
@@ -307,7 +339,7 @@ describe('SleepHistory — edit action', () => {
     renderHistory({ editingId: 1 });
 
     // The editing row should have the edit indicator; it's a class check
-    const editBtn = screen.getByRole('button', { name: /edit sleep record for 2026-08-24/i });
+    const editBtn = screen.getByRole('button', { name: /edit sleep record for 24 aug 2026/i });
     // The row containing the edit button should be inside the highlighted tr
     const row = editBtn.closest('tr');
     expect(row?.className).toMatch(/indigo/);
@@ -332,7 +364,7 @@ describe('SleepHistory — delete confirmation flow', () => {
 
     renderHistory();
     expect(
-      screen.getByRole('button', { name: /delete sleep record for 2026-08-24/i })
+      screen.getByRole('button', { name: /delete sleep record for 24 aug 2026/i })
     ).toBeInTheDocument();
   });
 
@@ -354,7 +386,7 @@ describe('SleepHistory — delete confirmation flow', () => {
     const user = userEvent.setup();
     renderHistory();
 
-    await user.click(screen.getByRole('button', { name: /delete sleep record for 2026-08-24/i }));
+    await user.click(screen.getByRole('button', { name: /delete sleep record for 24 aug 2026/i }));
 
     expect(mutateFn).not.toHaveBeenCalled();
     // Confirmation should now be visible
@@ -375,10 +407,10 @@ describe('SleepHistory — delete confirmation flow', () => {
     const user = userEvent.setup();
     renderHistory();
 
-    await user.click(screen.getByRole('button', { name: /delete sleep record for 2026-08-24/i }));
+    await user.click(screen.getByRole('button', { name: /delete sleep record for 24 aug 2026/i }));
 
-    // Date appears in confirmation span — verify at least one instance exists
-    expect(screen.getAllByText(/2026-08-24/).length).toBeGreaterThanOrEqual(1);
+    // Formatted date appears in confirmation — verify at least one instance exists
+    expect(screen.getAllByText(/24 Aug 2026/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /confirm delete/i })).toBeInTheDocument();
   });
@@ -401,7 +433,7 @@ describe('SleepHistory — delete confirmation flow', () => {
     const user = userEvent.setup();
     renderHistory();
 
-    await user.click(screen.getByRole('button', { name: /delete sleep record for 2026-08-24/i }));
+    await user.click(screen.getByRole('button', { name: /delete sleep record for 24 aug 2026/i }));
     await user.click(screen.getByRole('button', { name: /cancel/i }));
 
     expect(mutateFn).not.toHaveBeenCalled();
@@ -427,14 +459,14 @@ describe('SleepHistory — delete confirmation flow', () => {
     const user = userEvent.setup();
     renderHistory();
 
-    await user.click(screen.getByRole('button', { name: /delete sleep record for 2026-08-24/i }));
+    await user.click(screen.getByRole('button', { name: /delete sleep record for 24 aug 2026/i }));
     await user.click(screen.getByRole('button', { name: /confirm delete/i }));
 
     expect(mutateFn).toHaveBeenCalledOnce();
     expect(mutateFn.mock.calls[0][0]).toBe(42);
   });
 
-  it('disables destructive button and shows Deleting… while pending', () => {
+  it('disables destructive button and shows Deleting… while pending', async () => {
     vi.spyOn(sleepApi, 'useSleepQuery').mockReturnValue({
       data: [makeRecord()],
       isLoading: false,
@@ -452,24 +484,14 @@ describe('SleepHistory — delete confirmation flow', () => {
       reset: vi.fn(),
     } as unknown as ReturnType<typeof sleepApi.useDeleteSleepMutation>);
 
-    // To show the confirmation state we simulate it being open already by
-    // having deletingId match the record id — we do this via direct interaction.
-    // Re-render approach: this test just checks the pending UI in confirmation state.
-    // We achieve that by clicking delete first.
-    // Since isPending is true from the start, after clicking delete the
-    // mutate won't actually do anything and we can check the UI.
     const user = userEvent.setup();
     renderHistory();
 
-    // Open confirmation first
-    void user
-      .click(screen.getByRole('button', { name: /delete sleep record for 2026-08-24/i }))
-      .then(() => {
-        const deleteRecordBtn = screen.queryByRole('button', { name: /deleting/i });
-        if (deleteRecordBtn) {
-          expect(deleteRecordBtn).toBeDisabled();
-        }
-      });
+    await user.click(screen.getByRole('button', { name: /delete sleep record for 24 aug 2026/i }));
+
+    const confirmButton = screen.getByRole('button', { name: /confirm delete/i });
+    expect(confirmButton).toBeDisabled();
+    expect(confirmButton).toHaveTextContent('Deleting…');
   });
 });
 
@@ -504,7 +526,7 @@ describe('SleepHistory — delete error handling', () => {
     const user = userEvent.setup();
     renderHistory();
 
-    await user.click(screen.getByRole('button', { name: /delete sleep record for 2026-08-24/i }));
+    await user.click(screen.getByRole('button', { name: /delete sleep record for 24 aug 2026/i }));
     await user.click(screen.getByRole('button', { name: /confirm delete/i }));
 
     await waitFor(() => {
@@ -538,13 +560,13 @@ describe('SleepHistory — delete error handling', () => {
     const user = userEvent.setup();
     renderHistory();
 
-    await user.click(screen.getByRole('button', { name: /delete sleep record for 2026-08-24/i }));
+    await user.click(screen.getByRole('button', { name: /delete sleep record for 24 aug 2026/i }));
     await user.click(screen.getByRole('button', { name: /confirm delete/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/internal server error/i)).toBeInTheDocument();
     });
-    // Record row is still in the table — date appears at least once (in the table cell)
-    expect(screen.getAllByText('2026-08-24').length).toBeGreaterThanOrEqual(1);
+    // Record row is still in the table — formatted date appears at least once
+    expect(screen.getAllByText('24 Aug 2026').length).toBeGreaterThanOrEqual(1);
   });
 });

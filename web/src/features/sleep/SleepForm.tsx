@@ -8,6 +8,7 @@ import {
   useUpdateSleepMutation,
 } from '../../api/sleep';
 import { ApiError } from '../../api/client';
+import { formatDisplayDate } from './formatDate';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -27,6 +28,7 @@ export interface SleepFormProps {
   mode?: SleepFormMode;
   onEditCancel?: () => void;
   onEditSuccess?: () => void;
+  onCreateSuccess?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -77,7 +79,7 @@ interface FieldLabelProps {
 const FieldLabel: React.FC<FieldLabelProps> = ({ htmlFor, children, hint }) => (
   <label htmlFor={htmlFor} className="block text-sm font-medium text-slate-200">
     {children}
-    {hint && <span className="ml-1.5 text-xs font-normal text-slate-500">{hint}</span>}
+    {hint && <span className="ml-1.5 text-xs font-normal text-slate-400">{hint}</span>}
   </label>
 );
 
@@ -95,7 +97,7 @@ const FieldError: React.FC<FieldErrorProps> = ({ id, message }) =>
 
 const BASE_INPUT =
   'mt-1.5 w-full rounded-lg border bg-slate-900 px-3 py-2 text-sm text-slate-100 ' +
-  'placeholder-slate-600 transition focus:outline-none focus:ring-1 ' +
+  'placeholder-slate-500 transition-colors focus:outline-none focus:ring-1 ' +
   'disabled:cursor-not-allowed disabled:opacity-50';
 
 const INPUT_NORMAL = `${BASE_INPUT} border-slate-700 focus:border-indigo-500 focus:ring-indigo-500`;
@@ -121,6 +123,7 @@ export const SleepForm: React.FC<SleepFormProps> = ({
   mode = { type: 'create' },
   onEditCancel,
   onEditSuccess,
+  onCreateSuccess,
 }) => {
   const isEditMode = mode.type === 'edit';
 
@@ -176,15 +179,17 @@ export const SleepForm: React.FC<SleepFormProps> = ({
   const handleCancel = () => {
     reset({ date: '', bedtime: '', wake_time: '', quality: '', notes: '' });
     clearErrors();
-    updateMutation.reset();
+    resetMutation();
     onEditCancel?.();
   };
 
   const onSubmit = handleSubmit((values) => {
     const validationResult = validateForm(values);
     if (validationResult && typeof validationResult === 'object') {
+      let shouldFocus = true;
       Object.entries(validationResult).forEach(([field, message]) => {
-        setError(field as keyof FormValues, { message });
+        setError(field as keyof FormValues, { message }, { shouldFocus });
+        shouldFocus = false;
       });
       return;
     }
@@ -211,9 +216,11 @@ export const SleepForm: React.FC<SleepFormProps> = ({
           onError: (err) => {
             if (err instanceof ApiError) {
               if (err.status === 409) {
-                setError('date', {
-                  message: 'A sleep record already exists for that date.',
-                });
+                setError(
+                  'date',
+                  { message: 'A sleep record already exists for that date.' },
+                  { shouldFocus: true }
+                );
                 return;
               }
               if (err.status === 404) {
@@ -223,8 +230,12 @@ export const SleepForm: React.FC<SleepFormProps> = ({
                 return;
               }
               if (err.status === 400 && err.details && err.details.length > 0) {
-                for (const detail of err.details) {
-                  setError(detail.field as keyof FormValues, { message: detail.issue });
+                for (const [index, detail] of err.details.entries()) {
+                  setError(
+                    detail.field as keyof FormValues,
+                    { message: detail.issue },
+                    { shouldFocus: index === 0 }
+                  );
                 }
                 return;
               }
@@ -245,18 +256,25 @@ export const SleepForm: React.FC<SleepFormProps> = ({
         {
           onSuccess: () => {
             reset();
+            onCreateSuccess?.();
           },
           onError: (err) => {
             if (err instanceof ApiError) {
               if (err.status === 409) {
-                setError('date', {
-                  message: 'A sleep record already exists for this date.',
-                });
+                setError(
+                  'date',
+                  { message: 'A sleep record already exists for this date.' },
+                  { shouldFocus: true }
+                );
                 return;
               }
               if (err.status === 400 && err.details && err.details.length > 0) {
-                for (const detail of err.details) {
-                  setError(detail.field as keyof FormValues, { message: detail.issue });
+                for (const [index, detail] of err.details.entries()) {
+                  setError(
+                    detail.field as keyof FormValues,
+                    { message: detail.issue },
+                    { shouldFocus: index === 0 }
+                  );
                 }
                 return;
               }
@@ -294,12 +312,13 @@ export const SleepForm: React.FC<SleepFormProps> = ({
       {isEditMode && mode.type === 'edit' && (
         <div className="flex items-center justify-between rounded-lg border border-indigo-500/20 bg-indigo-500/10 px-3 py-2 text-xs text-indigo-300">
           <span>
-            Editing record for <span className="font-mono font-semibold">{mode.record.date}</span>
+            Editing record for{' '}
+            <span className="font-semibold">{formatDisplayDate(mode.record.date)}</span>
           </span>
           <button
             type="button"
             onClick={handleCancel}
-            className="ml-2 rounded p-0.5 hover:bg-indigo-500/20 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            className="ml-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-indigo-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
             aria-label="Cancel editing"
           >
             <X className="h-3.5 w-3.5" aria-hidden="true" />
@@ -327,7 +346,7 @@ export const SleepForm: React.FC<SleepFormProps> = ({
       </div>
 
       {/* Bedtime + Wake time side by side */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <FieldLabel htmlFor="sleep-bedtime">Bedtime</FieldLabel>
           <input
@@ -372,7 +391,9 @@ export const SleepForm: React.FC<SleepFormProps> = ({
           min={1}
           max={10}
           step={1}
+          inputMode="numeric"
           placeholder="8"
+          autoComplete="off"
           aria-required="true"
           aria-describedby={errors.quality ? 'sleep-quality-error' : undefined}
           aria-invalid={!!errors.quality}
@@ -386,12 +407,13 @@ export const SleepForm: React.FC<SleepFormProps> = ({
       {/* Notes */}
       <div>
         <FieldLabel htmlFor="sleep-notes">
-          Notes <span className="text-xs font-normal text-slate-500">(optional)</span>
+          Notes <span className="text-xs font-normal text-slate-400">(optional)</span>
         </FieldLabel>
         <textarea
           id="sleep-notes"
           rows={2}
           placeholder="Any observations about this sleep session…"
+          autoComplete="off"
           aria-describedby={errors.notes ? 'sleep-notes-error' : undefined}
           aria-invalid={!!errors.notes}
           disabled={isSubmitting}
@@ -450,27 +472,28 @@ export const SleepForm: React.FC<SleepFormProps> = ({
       )}
 
       {/* Action buttons */}
-      <div className={isEditMode ? 'flex gap-2' : undefined}>
-        {isEditMode && (
-          <button
-            type="button"
-            onClick={handleCancel}
-            disabled={isSubmitting}
-            className="flex-1 rounded-lg border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:border-slate-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Cancel
-          </button>
-        )}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={handleCancel}
+          disabled={isSubmitting}
+          className="flex-1 rounded-lg border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-300 transition-colors hover:border-slate-600 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Cancel
+        </button>
 
         <button
           id="sleep-form-submit"
           type="submit"
           disabled={isSubmitting}
-          className={`flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-50 ${isEditMode ? 'flex-1' : 'w-full'}`}
+          className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isSubmitting ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              <Loader2
+                className="h-4 w-4 animate-spin motion-reduce:animate-none"
+                aria-hidden="true"
+              />
               Saving…
             </>
           ) : isEditMode ? (
