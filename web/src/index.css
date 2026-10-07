@@ -3,6 +3,10 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    color-scheme: dark;
+  }
+
   body {
     font-family:
       'Plus Jakarta Sans',

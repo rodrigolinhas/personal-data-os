@@ -1,129 +1,148 @@
 import React, { useState } from 'react';
 import { useHealthQuery } from '../api/health';
-import { Activity, CheckCircle2, AlertCircle, Moon } from 'lucide-react';
+import { Activity, Moon, Plus } from 'lucide-react';
 import { SleepForm, SleepFormMode } from '../features/sleep/SleepForm';
 import { SleepHistory } from '../features/sleep/SleepHistory';
 import { SleepStats } from '../features/sleep/SleepStats';
 import { SleepRecord } from '../api/sleep';
+import { Dialog } from '../components/Dialog';
+
+// ---------------------------------------------------------------------------
+// App
+// ---------------------------------------------------------------------------
 
 export const App: React.FC = () => {
-  const { data: health, isLoading: healthLoading, isError: healthError } = useHealthQuery();
-
+  const { data: health, isLoading: healthLoading } = useHealthQuery();
   const isOnline = health?.status === 'ok';
 
-  // Edit state lives here — it bridges SleepHistory (selects a record)
-  // with SleepForm (pre-fills and submits the update).
+  // Dialog state for add/edit sleep record.
+  const [formOpen, setFormOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<SleepRecord | null>(null);
 
   const sleepFormMode: SleepFormMode = editingRecord
     ? { type: 'edit', record: editingRecord }
     : { type: 'create' };
 
-  const handleEditCancel = () => setEditingRecord(null);
-  const handleEditSuccess = () => setEditingRecord(null);
+  const handleAddClick = () => {
+    setEditingRecord(null);
+    setFormOpen(true);
+  };
+
+  const handleEditClick = (record: SleepRecord) => {
+    setEditingRecord(record);
+    setFormOpen(true);
+  };
+
+  const handleFormClose = () => {
+    setEditingRecord(null);
+    setFormOpen(false);
+  };
+
+  const handleFormSuccess = () => {
+    setEditingRecord(null);
+    setFormOpen(false);
+  };
 
   return (
     <div className="min-h-screen bg-[#090d16] text-slate-100 selection:bg-indigo-500 selection:text-white">
-      {/* ------------------------------------------------------------------ */}
-      {/* Header                                                              */}
-      {/* ------------------------------------------------------------------ */}
-      <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-sky-400 shadow-lg shadow-indigo-500/20">
-              <Activity className="h-5 w-5 text-white" aria-hidden="true" />
+      <a
+        href="#sleep"
+        className="sr-only z-[60] rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+      >
+        Skip to content
+      </a>
+      {/* ── Header ────────────────────────────────────────────────────── */}
+      <header className="border-b border-slate-800/60">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3 sm:flex-nowrap sm:px-6">
+          {/* Branding */}
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/15">
+              <Activity className="h-4 w-4 text-indigo-400" aria-hidden="true" />
             </div>
-            <div>
-              <h1 className="text-base font-bold tracking-tight text-white">Personal Data OS</h1>
-              <p className="font-mono text-xs text-slate-500">self-hosted telemetry</p>
-            </div>
+            <span className="text-sm font-semibold tracking-tight text-white">
+              Personal Data OS
+            </span>
           </div>
 
-          {/* Compact API health indicator */}
+          {/* Module navigation */}
+          <nav
+            aria-label="Main navigation"
+            className="order-last flex w-full items-center sm:order-none sm:ml-auto sm:w-auto"
+          >
+            <a
+              href="#sleep"
+              aria-current="page"
+              className="flex items-center gap-1.5 rounded-md bg-slate-800/80 px-2.5 py-1.5 text-xs font-medium text-white transition hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            >
+              <Moon className="h-3.5 w-3.5" aria-hidden="true" />
+              Sleep
+            </a>
+          </nav>
+
+          {/* API health — demoted to subtle indicator */}
           <div
             aria-label={`API status: ${healthLoading ? 'checking' : isOnline ? 'online' : 'offline'}`}
-            className="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900 px-3 py-1.5"
+            className="ml-auto flex items-center gap-1.5 sm:ml-0"
           >
-            {healthLoading ? (
-              <div className="h-2 w-2 animate-pulse rounded-full bg-amber-400" />
-            ) : isOnline ? (
-              <div className="relative flex items-center justify-center">
-                <div className="h-2 w-2 rounded-full bg-emerald-400" />
-                <div className="absolute h-3 w-3 animate-ping rounded-full bg-emerald-400/30" />
-              </div>
-            ) : (
-              <div className="h-2 w-2 rounded-full bg-rose-500" />
-            )}
-            <span className="font-mono text-xs text-slate-400">
-              {healthLoading
-                ? 'Checking…'
-                : isOnline
-                  ? 'API Online'
-                  : healthError
-                    ? 'API Offline'
-                    : 'API Offline'}
+            <div
+              className={`h-1.5 w-1.5 rounded-full ${
+                healthLoading
+                  ? 'animate-pulse bg-amber-400 motion-reduce:animate-none'
+                  : isOnline
+                    ? 'bg-emerald-400'
+                    : 'bg-rose-500'
+              }`}
+            />
+            <span className="text-xs text-slate-400">
+              {healthLoading ? 'Checking…' : isOnline ? 'API Online' : 'API Offline'}
             </span>
-            {isOnline ? (
-              <CheckCircle2 className="h-3 w-3 text-emerald-400" aria-hidden="true" />
-            ) : (
-              !healthLoading && <AlertCircle className="h-3 w-3 text-rose-400" aria-hidden="true" />
-            )}
           </div>
         </div>
       </header>
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Main content                                                        */}
-      {/* ------------------------------------------------------------------ */}
-      <main className="mx-auto max-w-6xl px-6 py-8">
-        {/* Section heading */}
-        <section aria-labelledby="sleep-section-heading" className="mb-8">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10 ring-1 ring-indigo-500/20">
-              <Moon className="h-5 w-5 text-indigo-400" aria-hidden="true" />
-            </div>
-            <div>
-              <h2 id="sleep-section-heading" className="text-xl font-bold text-white">
-                Sleep Tracking
-              </h2>
-              <p className="text-sm text-slate-400">Record and browse your sleep data</p>
-            </div>
+      {/* ── Main content ──────────────────────────────────────────────── */}
+      <main id="sleep" className="mx-auto max-w-6xl scroll-mt-4 px-4 py-8 sm:px-6">
+        {/* Page header */}
+        <div className="mb-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+          <div>
+            <h1 className="text-balance text-2xl font-bold tracking-tight text-white">Sleep</h1>
+            <p className="mt-1 text-sm text-slate-400">Track and understand your sleep patterns.</p>
           </div>
-        </section>
+          <button
+            type="button"
+            onClick={handleAddClick}
+            className="flex w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#090d16] sm:w-auto"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Add sleep
+          </button>
+        </div>
 
-        {/* Recent Sleep Statistics */}
+        {/* Sleep Statistics */}
         <SleepStats />
 
-        {/* Sleep workspace: form + history */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[380px_1fr]">
-          {/* Form panel */}
-          <aside>
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-xl backdrop-blur-sm">
-              <h3 className="mb-5 flex items-center gap-2 text-sm font-semibold text-slate-200">
-                {editingRecord ? 'Edit Sleep Record' : 'Add Sleep Record'}
-              </h3>
-              <SleepForm
-                mode={sleepFormMode}
-                onEditCancel={handleEditCancel}
-                onEditSuccess={handleEditSuccess}
-              />
-            </div>
-          </aside>
-
-          {/* History panel */}
-          <section aria-labelledby="sleep-history-heading">
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-xl backdrop-blur-sm">
-              <h3
-                id="sleep-history-heading"
-                className="mb-5 flex items-center gap-2 text-sm font-semibold text-slate-200"
-              >
-                Sleep History
-              </h3>
-              <SleepHistory editingId={editingRecord?.id ?? null} onEdit={setEditingRecord} />
-            </div>
-          </section>
-        </div>
+        {/* Sleep History */}
+        <section aria-labelledby="sleep-history-heading">
+          <h2 id="sleep-history-heading" className="mb-4 text-sm font-semibold text-slate-400">
+            History
+          </h2>
+          <SleepHistory editingId={editingRecord?.id ?? null} onEdit={handleEditClick} />
+        </section>
       </main>
+
+      {/* ── Add / Edit Dialog ─────────────────────────────────────────── */}
+      <Dialog
+        open={formOpen}
+        onClose={handleFormClose}
+        title={editingRecord ? 'Edit Sleep Record' : 'Add Sleep Record'}
+      >
+        <SleepForm
+          mode={sleepFormMode}
+          onEditCancel={handleFormClose}
+          onEditSuccess={handleFormSuccess}
+          onCreateSuccess={handleFormSuccess}
+        />
+      </Dialog>
     </div>
   );
 };
