@@ -330,6 +330,9 @@ go build -v ./cmd/api
 ```bash
 cd web
 
+# Audit dependencies (high/critical findings fail validation)
+npm run audit
+
 # 1. Run TypeScript typecheck (strict noEmit)
 npm run typecheck
 
@@ -362,6 +365,7 @@ When modifying database models:
 In addition to the standard verification commands above, the repository runs:
 - **CodeQL**: Automated semantic code analysis scanning Go, JavaScript/TypeScript, and GitHub Actions workflows for vulnerabilities and security anti-patterns.
 - **govulncheck**: Continuous vulnerability scanning of Go modules and dependencies in CI.
+- **npm audit**: Frontend dependency auditing in CI and local validation. See [the remediation workflow](docs/development.md#frontend-dependency-security) for manual, reviewed dependency fixes.
 - **Secret Scanning & Dependabot**: Automated detection of credentials and outdated dependencies.
 
 ---
@@ -404,6 +408,7 @@ When the issue modifies the web interface:
 - [ ] UI components and forms implemented under `web/src/features/<domain>/`.
 - [ ] Loading, empty, validation, and error states handled gracefully.
 - [ ] Frontend tests (`npm test`) pass.
+- [ ] Dependency audit (`npm run audit`) passes the high/critical severity gate.
 - [ ] `npm run typecheck`, `npm run lint`, and `npm run format:check` pass.
 - [ ] Production build (`npm run build`) succeeds.
 

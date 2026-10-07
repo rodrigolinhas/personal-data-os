@@ -107,6 +107,9 @@ go build -o bin/api ./cmd/api
 ```bash
 cd web
 
+# Audit dependencies (high/critical findings fail validation)
+npm run audit
+
 # Run TypeScript typecheck (strict noEmit)
 npm run typecheck
 
@@ -125,6 +128,21 @@ npm test
 # Build production bundle
 npm run build
 ```
+
+### Frontend Dependency Security
+
+CI and `./scripts/validate.sh` use `npm run audit`, which runs `npm audit --audit-level=high` against the complete dependency tree, including development tooling. All severities remain visible; high and critical findings fail validation. Registry access is required, and audit errors also fail the check.
+
+Dependency remediation is a separate manual operation:
+
+1. Run `npm audit` to inspect affected packages, dependency paths, advisories, and fix availability.
+2. Preview compatible changes with `npm audit fix --dry-run` (or `--dry-run --json`).
+3. If the preview contains suitable compatible fixes, manually run `npm audit fix` and review `git diff -- web/package.json web/package-lock.json` from the repository root.
+4. Run `npm ci`, `npm run audit`, and all frontend verification commands above before submitting the dependency diff for review.
+
+`npm audit fix --force` can install versions outside declared dependency ranges, including SemVer-major upgrades. It is not the normal remediation step: assess target versions and migration requirements explicitly, and track major upgrades in a dedicated issue when they exceed the current scope. Never use force merely to make the audit pass.
+
+CI, validation scripts, and install/build/test lifecycle hooks must never run `npm audit fix` or `npm audit fix --force`. Automated checks detect findings; dependency changes require manual review. Lower-severity findings should be tracked for maintenance rather than hidden by omitting development dependencies or weakening the severity gate.
 
 ---
 

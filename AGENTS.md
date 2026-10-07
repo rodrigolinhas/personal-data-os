@@ -30,6 +30,7 @@ Instructions and architectural guidelines for AI coding assistants (Gemini, Clau
    - Always write unit and integration tests for new business logic in the respective package.
    - Backend tests must run cleanly via `go test ./...` and pass `go vet`.
    - Frontend tests must run cleanly via Vitest (`npm test`), ESLint (`npm run lint`), and TypeScript typecheck (`npm run typecheck`).
+   - Frontend dependency auditing (`npm run audit`) must pass the high/critical severity gate. Never run dependency fixes in automated workflows; remediation must be manual and reviewed.
 
 ---
 
@@ -52,6 +53,9 @@ go run ./cmd/api
 
 ### Frontend (`web/`)
 ```bash
+# Audit dependencies (high/critical findings fail validation)
+npm run audit
+
 # Typecheck TypeScript
 npm run typecheck
 

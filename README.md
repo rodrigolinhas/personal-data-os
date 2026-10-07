@@ -263,6 +263,9 @@ go build -o bin/api ./cmd/api
 ```bash
 cd web
 
+# Audit dependencies (high/critical findings fail validation)
+npm run audit
+
 # Run TypeScript typecheck
 npm run typecheck
 
