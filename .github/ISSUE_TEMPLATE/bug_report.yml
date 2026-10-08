@@ -66,7 +66,7 @@ body:
       description: OS, Go version, Node.js version, browser (if applicable).
       value: |
         - OS: [e.g. Linux / macOS / Windows]
-        - Go Version: [e.g. 1.27]
+        - Go Version: [e.g. 1.27.2]
         - Node Version: [e.g. 20.x]
         - Browser: [e.g. Chrome / Firefox / Safari]
     validations:

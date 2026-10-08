@@ -42,7 +42,7 @@ export const Dialog: React.FC<DialogProps> = ({ open, onClose, title, children }
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
-      className="m-auto w-[calc(100%-2rem)] max-w-lg overscroll-contain rounded-xl border border-slate-800 bg-slate-950 p-0 text-left text-slate-100 shadow-2xl backdrop:bg-black/60 backdrop:backdrop-blur-sm"
+      className="m-auto w-[calc(100%-2rem)] max-w-lg overscroll-contain rounded-xl border border-slate-800 bg-slate-950 p-0 text-left text-slate-100 shadow-2xl backdrop:bg-black/60 backdrop:backdrop-blur-xs"
     >
       {open && (
         <div>
@@ -54,7 +54,7 @@ export const Dialog: React.FC<DialogProps> = ({ open, onClose, title, children }
               ref={closeButtonRef}
               type="button"
               onClick={onClose}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-800 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-800 hover:text-white focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500"
               aria-label="Close dialog"
             >
               <X className="h-4 w-4" aria-hidden="true" />

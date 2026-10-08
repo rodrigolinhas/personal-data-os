@@ -47,7 +47,7 @@ export const App: React.FC = () => {
     <div className="min-h-screen bg-[#090d16] text-slate-100 selection:bg-indigo-500 selection:text-white">
       <a
         href="#sleep"
-        className="sr-only z-[60] rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+        className="sr-only z-[60] rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-white"
       >
         Skip to content
       </a>
@@ -72,7 +72,7 @@ export const App: React.FC = () => {
             <a
               href="#sleep"
               aria-current="page"
-              className="flex items-center gap-1.5 rounded-md bg-slate-800/80 px-2.5 py-1.5 text-xs font-medium text-white transition hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              className="flex items-center gap-1.5 rounded-md bg-slate-800/80 px-2.5 py-1.5 text-xs font-medium text-white transition hover:bg-slate-800 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500"
             >
               <Moon className="h-3.5 w-3.5" aria-hidden="true" />
               Sleep
@@ -105,13 +105,13 @@ export const App: React.FC = () => {
         {/* Page header */}
         <div className="mb-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div>
-            <h1 className="text-balance text-2xl font-bold tracking-tight text-white">Sleep</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-balance text-white">Sleep</h1>
             <p className="mt-1 text-sm text-slate-400">Track and understand your sleep patterns.</p>
           </div>
           <button
             type="button"
             onClick={handleAddClick}
-            className="flex w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#090d16] sm:w-auto"
+            className="flex w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#090d16] sm:w-auto"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             Add sleep

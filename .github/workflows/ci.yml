@@ -35,8 +35,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.27'
-          check-latest: true
+          go-version: '1.27.2'
           cache-dependency-path: api/go.sum
 
       - name: Verify Formatting (gofmt)
@@ -71,7 +70,8 @@ jobs:
       - name: Run govulncheck
         uses: golang/govulncheck-action@v1
         with:
-          go-version-input: '1.27'
+          go-version-input: '1.27.2'
+          cache-dependency-path: api/go.sum
           go-package: ./...
           work-dir: api
 
@@ -96,7 +96,10 @@ jobs:
           cache-dependency-path: web/package-lock.json
 
       - name: Install Dependencies
-        run: npm ci || npm install
+        run: npm ci
+
+      - name: Audit npm Dependencies
+        run: npm run audit
 
       - name: Audit npm Dependencies
         run: npm run audit
