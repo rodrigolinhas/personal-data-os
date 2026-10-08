@@ -16,7 +16,7 @@
     <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" />
   </a>
   <a href="https://go.dev/">
-    <img src="https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go" alt="Go Version" />
+    <img src="https://img.shields.io/badge/Go-1.27.2+-00ADD8?logo=go" alt="Go Version" />
   </a>
   <a href="https://react.dev/">
     <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react" alt="React Version" />
@@ -213,15 +213,15 @@ Detailed architectural diagrams and layer flows are documented in [docs/architec
 
 | Layer | Technology | Purpose |
 | :--- | :--- | :--- |
-| **Backend Language** | Go 1.27+ | Single-binary runtime, concurrency, low memory footprint |
+| **Backend Language** | Go 1.27.2+ | Single-binary runtime, concurrency, low memory footprint |
 | **HTTP Routing** | `go-chi/chi/v5` | Idiomatic HTTP routing and composable middleware |
 | **Database Pool** | `jackc/pgx/v5` (`pgxpool`) | High-performance PostgreSQL connection pooling |
 | **SQL Tooling** | `sqlc` | Type-safe Go query code generation from explicit SQL |
 | **Migrations** | `golang-migrate` | Deterministic `.up.sql` / `.down.sql` schema versions |
 | **Structured Logs**| `log/slog` | Standard library structured JSON/text logging |
 | **Frontend UI** | React 18 + TypeScript | Strict-typed component interface |
-| **Build Tooling** | Vite 5 | Fast development server and optimized bundle build |
-| **Styling** | Tailwind CSS 3 | Utility-first styling with build-time CSS compilation |
+| **Build Tooling** | Vite 6 | Fast development server and optimized bundle build |
+| **Styling** | Tailwind CSS 4 | Utility-first styling with build-time CSS compilation |
 | **Server State** | TanStack Query v5 | Declarative server-state caching and synchronization |
 | **Forms & Schemas**| React Hook Form + Zod | Type-safe form validation matching backend contracts |
 | **Testing** | Vitest + RTL & Go `testing` | Component, unit, and API integration testing |
@@ -262,6 +262,9 @@ go build -o bin/api ./cmd/api
 ### Frontend (`web/`)
 ```bash
 cd web
+
+# Audit dependencies (high/critical findings fail validation)
+npm run audit
 
 # Run TypeScript typecheck
 npm run typecheck

@@ -70,7 +70,7 @@ flowchart TD
   - Zero business logic duplication; backend remains the single source of truth for calculations and validation.
 
 ### Backend (`api/`)
-- **Technology**: Go 1.27+, `go-chi/chi/v5`, `jackc/pgx/v5` (`pgxpool`), `sqlc`.
+- **Technology**: Go 1.27.2+, `go-chi/chi/v5`, `jackc/pgx/v5` (`pgxpool`), `sqlc`.
 - **Responsibilities**:
   - HTTP routing, request deserialization, and strict input validation.
   - Domain business logic, aggregations, and metrics computation.

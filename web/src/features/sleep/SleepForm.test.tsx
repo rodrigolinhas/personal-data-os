@@ -250,10 +250,11 @@ describe('SleepForm — validation', () => {
 describe('SleepForm — submission (create mode)', () => {
   it('calls createSleep with correct payload (no duration_minutes)', async () => {
     const user = userEvent.setup();
+    const mutate = vi.fn((_input, options) => {
+      options?.onSuccess?.(validRecord, _input, undefined);
+    });
     const mockMutate = vi.spyOn(sleepApi, 'useCreateSleepMutation').mockReturnValue({
-      mutate: vi.fn((_input, options) => {
-        options?.onSuccess?.(validRecord, _input, undefined);
-      }),
+      mutate,
       isPending: false,
       isSuccess: false,
       isError: false,
@@ -274,13 +275,7 @@ describe('SleepForm — submission (create mode)', () => {
     await user.click(screen.getByRole('button', { name: /log sleep/i }));
 
     await waitFor(() => {
-      const callArgs = (
-        mockMutate.mock.results[0].value as ReturnType<typeof sleepApi.useCreateSleepMutation>
-      ).mutate;
-      const input = (callArgs as ReturnType<typeof vi.fn>).mock.calls[0][0] as Record<
-        string,
-        unknown
-      >;
+      const input = mutate.mock.calls[0][0] as Record<string, unknown>;
       expect(input).not.toHaveProperty('duration_minutes');
       expect(input.date).toBe('2026-08-24');
       expect(input.quality).toBe(8);

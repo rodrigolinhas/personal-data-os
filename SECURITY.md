@@ -167,6 +167,7 @@ The repository maintains automated defense-in-depth controls to assist code qual
 
 - **Continuous Integration (CI)**: GitHub Actions automatically runs formatting checks (`gofmt`, Prettier), static analysis (`go vet`, ESLint), unit and integration tests with Go's race detector (`go test -race`), and production builds on pull requests.
 - **Go Vulnerability Auditing**: Automated [`govulncheck`](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck) scans analyze Go dependencies and code in CI for known public vulnerabilities.
+- **Frontend Dependency Auditing**: CI and local validation run `npm run audit` against npm dependencies, including development tooling. High and critical findings fail the check; lower-severity findings remain visible. Automated workflows only detect findings and never run dependency fixes. Remediation is manual and reviewed as described in [the development guide](docs/development.md#frontend-dependency-security).
 - **CodeQL Code Scanning**: GitHub CodeQL scans Go, JavaScript/TypeScript, and GitHub Actions workflows to identify potential security weaknesses and anti-patterns.
 - **Secret Scanning & Dependabot**: Automated GitHub security features alert on potential leaked credentials and outdated or vulnerable package dependencies.
 - **Protected Branch Workflows**: Changes to `main` require review and passing CI verification status checks.

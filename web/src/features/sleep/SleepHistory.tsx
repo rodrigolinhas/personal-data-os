@@ -110,7 +110,7 @@ export const SleepHistory: React.FC<SleepHistoryProps> = ({ editingId = null, on
           id="sleep-history-retry"
           type="button"
           onClick={() => void refetch()}
-          className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-300 transition hover:border-rose-400/50 hover:text-rose-200 focus:outline-none focus-visible:ring-1 focus-visible:ring-rose-400"
+          className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-300 transition hover:border-rose-400/50 hover:text-rose-200 focus:outline-hidden focus-visible:ring-1 focus-visible:ring-rose-400"
         >
           Retry
         </button>
@@ -212,27 +212,27 @@ export const SleepHistory: React.FC<SleepHistoryProps> = ({ editingId = null, on
                     idx === records.length - 1 ? 'border-b-0' : ''
                   } ${
                     isBeingEdited
-                      ? 'bg-indigo-500/5 ring-1 ring-inset ring-indigo-500/20'
+                      ? 'bg-indigo-500/5 ring-1 ring-indigo-500/20 ring-inset'
                       : 'hover:bg-slate-800/20'
                   }`}
                 >
                   {/* Date */}
-                  <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-200">
+                  <td className="px-4 py-3 text-sm whitespace-nowrap text-slate-200">
                     {displayDate}
                   </td>
 
                   {/* Sleep time range */}
-                  <td className="whitespace-nowrap px-4 py-3 text-sm tabular-nums text-slate-400">
+                  <td className="px-4 py-3 text-sm whitespace-nowrap text-slate-400 tabular-nums">
                     {formatTimeRange(record.bedtime, record.wake_time)}
                   </td>
 
                   {/* Duration */}
-                  <td className="whitespace-nowrap px-4 py-3 text-sm font-medium tabular-nums text-white">
+                  <td className="px-4 py-3 text-sm font-medium whitespace-nowrap text-white tabular-nums">
                     {formatDuration(record.duration_minutes)}
                   </td>
 
                   {/* Quality */}
-                  <td className="whitespace-nowrap px-4 py-3 text-sm tabular-nums text-slate-300">
+                  <td className="px-4 py-3 text-sm whitespace-nowrap text-slate-300 tabular-nums">
                     {record.quality} / 10
                   </td>
 
@@ -259,7 +259,7 @@ export const SleepHistory: React.FC<SleepHistoryProps> = ({ editingId = null, on
                             type="button"
                             onClick={handleCancelDelete}
                             disabled={isDeleting}
-                            className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 transition-colors hover:border-slate-600 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 transition-colors hover:border-slate-600 hover:text-white focus:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             Cancel
                           </button>
@@ -268,7 +268,7 @@ export const SleepHistory: React.FC<SleepHistoryProps> = ({ editingId = null, on
                             onClick={() => handleConfirmDelete(record)}
                             disabled={isDeleting}
                             aria-label={`Confirm delete sleep record for ${displayDate}`}
-                            className="flex items-center gap-1 rounded border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-xs font-medium text-rose-300 transition-colors hover:border-rose-400/60 hover:bg-rose-500/20 hover:text-rose-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="flex items-center gap-1 rounded border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-xs font-medium text-rose-300 transition-colors hover:border-rose-400/60 hover:bg-rose-500/20 hover:text-rose-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {isDeleting ? (
                               <>
@@ -290,7 +290,7 @@ export const SleepHistory: React.FC<SleepHistoryProps> = ({ editingId = null, on
                           type="button"
                           onClick={() => onEdit(record)}
                           aria-label={`Edit sleep record for ${displayDate}`}
-                          className="flex h-9 w-9 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-800 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                          className="flex h-9 w-9 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-800 hover:text-white focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500"
                         >
                           <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                         </button>
@@ -298,7 +298,7 @@ export const SleepHistory: React.FC<SleepHistoryProps> = ({ editingId = null, on
                           type="button"
                           onClick={() => handleDeleteClick(record.id)}
                           aria-label={`Delete sleep record for ${displayDate}`}
-                          className="flex h-9 w-9 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-rose-500/10 hover:text-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
+                          className="flex h-9 w-9 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-rose-500/10 hover:text-rose-400 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-rose-500"
                         >
                           <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                         </button>
