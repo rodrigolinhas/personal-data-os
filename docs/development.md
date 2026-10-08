@@ -10,7 +10,8 @@ Before starting, ensure the following software is installed:
 - **Git** (2.30+)
 - **Docker & Docker Compose** (for PostgreSQL)
 - **Go** (1.27+)
-- **Node.js** (20+ LTS recommended, minimum 18+) and **npm** (9+)
+- **Node.js** (20.19+; Node 22 LTS recommended) and **npm** (9+)
+- **Browser**: Safari 16.4+, Chrome 111+, or Firefox 128+ (required by Tailwind CSS 4)
 - *(Optional)* **`sqlc`** (for regenerating Go query models from SQL)
 - *(Optional)* **`golang-migrate`** CLI (for managing manual migration runs)
 

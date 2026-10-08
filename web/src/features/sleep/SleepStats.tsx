@@ -47,7 +47,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, summary }) => {
 
         <div>
           <span className="block text-xs text-slate-400">Records</span>
-          <span className="mt-1 block text-lg font-semibold tabular-nums text-slate-300">
+          <span className="mt-1 block text-lg font-semibold text-slate-300 tabular-nums">
             {formatRecordCount(summary.record_count)}
           </span>
         </div>
@@ -113,7 +113,7 @@ export const SleepStats: React.FC = () => {
             id="sleep-stats-retry"
             type="button"
             onClick={() => void refetch()}
-            className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-300 transition hover:border-rose-400/50 hover:text-rose-200 focus:outline-none focus-visible:ring-1 focus-visible:ring-rose-400"
+            className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-300 transition hover:border-rose-400/50 hover:text-rose-200 focus:outline-hidden focus-visible:ring-1 focus-visible:ring-rose-400"
           >
             Retry
           </button>

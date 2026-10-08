@@ -220,8 +220,8 @@ Detailed architectural diagrams and layer flows are documented in [docs/architec
 | **Migrations** | `golang-migrate` | Deterministic `.up.sql` / `.down.sql` schema versions |
 | **Structured Logs**| `log/slog` | Standard library structured JSON/text logging |
 | **Frontend UI** | React 18 + TypeScript | Strict-typed component interface |
-| **Build Tooling** | Vite 5 | Fast development server and optimized bundle build |
-| **Styling** | Tailwind CSS 3 | Utility-first styling with build-time CSS compilation |
+| **Build Tooling** | Vite 6 | Fast development server and optimized bundle build |
+| **Styling** | Tailwind CSS 4 | Utility-first styling with build-time CSS compilation |
 | **Server State** | TanStack Query v5 | Declarative server-state caching and synchronization |
 | **Forms & Schemas**| React Hook Form + Zod | Type-safe form validation matching backend contracts |
 | **Testing** | Vitest + RTL & Go `testing` | Component, unit, and API integration testing |

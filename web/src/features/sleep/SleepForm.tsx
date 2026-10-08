@@ -97,7 +97,7 @@ const FieldError: React.FC<FieldErrorProps> = ({ id, message }) =>
 
 const BASE_INPUT =
   'mt-1.5 w-full rounded-lg border bg-slate-900 px-3 py-2 text-sm text-slate-100 ' +
-  'placeholder-slate-500 transition-colors focus:outline-none focus:ring-1 ' +
+  'placeholder-slate-500 transition-colors focus:outline-hidden focus:ring-1 ' +
   'disabled:cursor-not-allowed disabled:opacity-50';
 
 const INPUT_NORMAL = `${BASE_INPUT} border-slate-700 focus:border-indigo-500 focus:ring-indigo-500`;
@@ -318,7 +318,7 @@ export const SleepForm: React.FC<SleepFormProps> = ({
           <button
             type="button"
             onClick={handleCancel}
-            className="ml-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-indigo-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+            className="ml-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-indigo-500/20 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-400"
             aria-label="Cancel editing"
           >
             <X className="h-3.5 w-3.5" aria-hidden="true" />
@@ -477,7 +477,7 @@ export const SleepForm: React.FC<SleepFormProps> = ({
           type="button"
           onClick={handleCancel}
           disabled={isSubmitting}
-          className="flex-1 rounded-lg border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-300 transition-colors hover:border-slate-600 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex-1 rounded-lg border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-300 transition-colors hover:border-slate-600 hover:text-white focus:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Cancel
         </button>
@@ -486,7 +486,7 @@ export const SleepForm: React.FC<SleepFormProps> = ({
           id="sleep-form-submit"
           type="submit"
           disabled={isSubmitting}
-          className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isSubmitting ? (
             <>
