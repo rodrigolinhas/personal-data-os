@@ -16,7 +16,7 @@
     <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" />
   </a>
   <a href="https://go.dev/">
-    <img src="https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go" alt="Go Version" />
+    <img src="https://img.shields.io/badge/Go-1.27.2+-00ADD8?logo=go" alt="Go Version" />
   </a>
   <a href="https://react.dev/">
     <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react" alt="React Version" />
@@ -213,7 +213,7 @@ Detailed architectural diagrams and layer flows are documented in [docs/architec
 
 | Layer | Technology | Purpose |
 | :--- | :--- | :--- |
-| **Backend Language** | Go 1.27+ | Single-binary runtime, concurrency, low memory footprint |
+| **Backend Language** | Go 1.27.2+ | Single-binary runtime, concurrency, low memory footprint |
 | **HTTP Routing** | `go-chi/chi/v5` | Idiomatic HTTP routing and composable middleware |
 | **Database Pool** | `jackc/pgx/v5` (`pgxpool`) | High-performance PostgreSQL connection pooling |
 | **SQL Tooling** | `sqlc` | Type-safe Go query code generation from explicit SQL |
